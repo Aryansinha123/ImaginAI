@@ -1,0 +1,27 @@
+npm install axios framer-motion zustand lucide-react
+
+| Package       | Purpose          |
+| ------------- | ---------------- |
+| axios         | API requests     |
+| framer-motion | animations       |
+| zustand       | state management |
+| lucide-react  | icons            |
+
+
+
+python -m venv venv
+venv\Scripts\activate
+
+
+pip install fastapi uvicorn groq chromadb pymongo python-dotenv
+| Package  | Purpose        |
+| -------- | -------------- |
+| fastapi  | backend API    |
+| uvicorn  | server         |
+| groq     | AI integration |
+| chromadb | vector memory  |
+| pymongo  | MongoDB        |
+| dotenv   | env variables  |
+
+
+uvicorn main:app --reload
