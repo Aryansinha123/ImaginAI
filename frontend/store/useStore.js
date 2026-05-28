@@ -10,6 +10,8 @@ export const useStore = create((set, get) => ({
   activeScene: null,
   characters: [],
   scenes: [],
+  canvasNodes: [],
+  canvasEdges: [],
   isLoading: false,
   isGenerating: false,
   authError: null,
@@ -95,9 +97,10 @@ export const useStore = create((set, get) => ({
   },
 
   setActiveProject: (project) => {
-    set({ activeProject: project, activeView: "Dashboard", activeScene: null, characters: [], scenes: [] });
+    set({ activeProject: project, activeView: "Dashboard", activeScene: null, characters: [], scenes: [], canvasNodes: [], canvasEdges: [] });
     if (project) {
       get().fetchProjectData(project.id);
+      get().fetchCanvasState(project.id);
     }
   },
 
@@ -119,6 +122,27 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error("Error fetching project details:", err);
       set({ isLoading: false });
+    }
+  },
+
+  fetchCanvasState: async (projectId) => {
+    try {
+      const res = await API.get(`/projects/${projectId}/canvas`);
+      set({
+        canvasNodes: res.data.nodes || [],
+        canvasEdges: res.data.edges || []
+      });
+    } catch (err) {
+      console.error("Error fetching canvas state:", err);
+    }
+  },
+
+  saveCanvasState: async (projectId, nodes, edges) => {
+    try {
+      await API.put(`/projects/${projectId}/canvas`, { nodes, edges });
+      set({ canvasNodes: nodes, canvasEdges: edges });
+    } catch (err) {
+      console.error("Error saving canvas state:", err);
     }
   },
 
@@ -185,7 +209,9 @@ export const useStore = create((set, get) => ({
           projects: remaining,
           activeProject: nextActive,
           characters: [],
-          scenes: []
+          scenes: [],
+          canvasNodes: [],
+          canvasEdges: []
         };
       });
       const { activeProject } = get();

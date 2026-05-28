@@ -7,6 +7,7 @@ import TimelineView from "./TimelineView";
 import MemoriesView from "./MemoriesView";
 import SceneStudioView from "./SceneStudioView";
 import SettingsView from "./SettingsView";
+import RelationshipCanvasView from "./RelationshipCanvasView";
 import { Sparkles, Film, Loader2 } from "lucide-react";
 
 export default function ProjectDashboard() {
@@ -36,6 +37,8 @@ export default function ProjectDashboard() {
     switch (activeView) {
       case "Characters":
         return <CharactersView />;
+      case "Relationship Canvas":
+        return <RelationshipCanvasView />;
       case "Timeline":
         return (
           <TimelineView

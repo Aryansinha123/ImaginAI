@@ -21,7 +21,6 @@ export default function CharactersView() {
   const [personality, setPersonality] = useState("");
   const [emotionalTraits, setEmotionalTraits] = useState("");
   const [speakingStyle, setSpeakingStyle] = useState("");
-  const [relationship, setRelationship] = useState("");
   const [voice, setVoice] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
 
@@ -38,7 +37,6 @@ export default function CharactersView() {
     setPersonality("");
     setEmotionalTraits("");
     setSpeakingStyle("");
-    setRelationship("");
     setVoice("");
     setAvatarUrl("");
     setShowAddForm(true);
@@ -57,7 +55,6 @@ export default function CharactersView() {
     setPersonality(char.personality || "");
     setEmotionalTraits(char.emotionalTraits || "");
     setSpeakingStyle(char.speakingStyle || "");
-    setRelationship(char.relationship || "");
     setVoice(char.voice || "");
     setAvatarUrl(char.avatarUrl || "");
     setShowAddForm(true);
@@ -92,7 +89,6 @@ export default function CharactersView() {
       personality,
       emotionalTraits,
       speakingStyle,
-      relationship,
       voice,
       avatarUrl: finalAvatar
     };
@@ -414,18 +410,7 @@ export default function CharactersView() {
                   Psychology, Voice & Relationships
                 </h4>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
-                      Relationship Role/Type
-                    </label>
-                    <input
-                      type="text"
-                      value={relationship}
-                      onChange={(e) => setRelationship(e.target.value)}
-                      placeholder="e.g. Rival, Confidant, Secret Love"
-                      className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
-                    />
-                  </div>
+
                   <div>
                     <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
                       Voice / Vocal Style

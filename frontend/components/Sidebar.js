@@ -16,7 +16,8 @@ import {
   Sparkles,
   Settings,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Network
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -51,6 +52,7 @@ export default function Sidebar() {
   const navItems = [
     { name: "Dashboard", icon: LayoutDashboard },
     { name: "Characters", icon: Users },
+    { name: "Relationship Canvas", icon: Network },
     { name: "Timeline", icon: Film },
     { name: "Memories", icon: History },
     { name: "Scene Studio", icon: Sparkles },

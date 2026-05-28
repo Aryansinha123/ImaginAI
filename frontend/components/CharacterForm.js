@@ -154,18 +154,6 @@ export default function CharacterForm({ onCreate, onCancel }) {
           />
         </div>
 
-        {/* Relationship */}
-        <div>
-          <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1.5">Relationship / Role</label>
-          <input
-            name="relationship"
-            type="text"
-            value={character.relationship}
-            onChange={handleChange}
-            placeholder="e.g. Protagonist / Rebellion Leader"
-            className="w-full px-3 py-2 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm transition-colors"
-          />
-        </div>
 
         {/* Voice */}
         <div>
