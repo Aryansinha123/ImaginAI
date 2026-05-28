@@ -14,11 +14,14 @@ export async function GET(req, { params }) {
     const client = await clientPromise;
     const db = client.db("imaginai_db");
 
+    console.log("DEBUG characters GET: projectId =", projectId, "userId =", userId);
     // Verify project exists and belongs to user
     const project = await db.collection("projects").findOne({
       _id: new ObjectId(projectId),
       user_id: new ObjectId(userId)
     });
+
+    console.log("DEBUG characters GET: found project =", project);
 
     if (!project) {
       return Response.json({ detail: "Project not found" }, { status: 404 });

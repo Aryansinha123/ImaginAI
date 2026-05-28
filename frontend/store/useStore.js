@@ -15,6 +15,7 @@ export const useStore = create((set, get) => ({
   isLoading: false,
   isGenerating: false,
   authError: null,
+  authInitialized: false,
 
   initAuth: () => {
     if (typeof window !== "undefined") {
@@ -23,7 +24,25 @@ export const useStore = create((set, get) => ({
       if (token && userStr) {
         set({ token, user: JSON.parse(userStr) });
         get().fetchProjects();
+
+        // Restore active project and view
+        const savedProject = localStorage.getItem("imaginai_active_project");
+        const savedView = localStorage.getItem("imaginai_active_view");
+        if (savedProject) {
+          try {
+            const project = JSON.parse(savedProject);
+            set({ activeProject: project });
+            get().fetchProjectData(project.id);
+            get().fetchCanvasState(project.id);
+          } catch (e) {
+            console.error("Error loading active project from local storage:", e);
+          }
+        }
+        if (savedView) {
+          set({ activeView: savedView });
+        }
       }
+      set({ authInitialized: true });
     }
   },
 
@@ -64,11 +83,14 @@ export const useStore = create((set, get) => ({
   logout: () => {
     localStorage.removeItem("imaginai_token");
     localStorage.removeItem("imaginai_user");
+    localStorage.removeItem("imaginai_active_project");
+    localStorage.removeItem("imaginai_active_view");
     set({
       user: null,
       token: null,
       projects: [],
       activeProject: null,
+      activeView: "Dashboard",
       characters: [],
       scenes: [],
       authError: null
@@ -98,13 +120,27 @@ export const useStore = create((set, get) => ({
 
   setActiveProject: (project) => {
     set({ activeProject: project, activeView: "Dashboard", activeScene: null, characters: [], scenes: [], canvasNodes: [], canvasEdges: [] });
+    if (typeof window !== "undefined") {
+      if (project) {
+        localStorage.setItem("imaginai_active_project", JSON.stringify(project));
+        localStorage.setItem("imaginai_active_view", "Dashboard");
+      } else {
+        localStorage.removeItem("imaginai_active_project");
+        localStorage.removeItem("imaginai_active_view");
+      }
+    }
     if (project) {
       get().fetchProjectData(project.id);
       get().fetchCanvasState(project.id);
     }
   },
 
-  setActiveView: (view) => set({ activeView: view }),
+  setActiveView: (view) => {
+    set({ activeView: view });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("imaginai_active_view", view);
+    }
+  },
   setActiveScene: (scene) => set({ activeScene: scene }),
 
   fetchProjectData: async (projectId) => {
@@ -215,9 +251,7 @@ export const useStore = create((set, get) => ({
         };
       });
       const { activeProject } = get();
-      if (activeProject) {
-        get().setActiveProject(activeProject);
-      }
+      get().setActiveProject(activeProject);
     } catch (err) {
       console.error("Error deleting project:", err);
     }

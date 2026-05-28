@@ -15,11 +15,14 @@ export async function GET(req, { params }) {
     const client = await clientPromise;
     const db = client.db("imaginai_db");
 
+    console.log("DEBUG scenes GET: projectId =", projectId, "userId =", userId);
     // Verify project exists and belongs to user
     const project = await db.collection("projects").findOne({
       _id: new ObjectId(projectId),
       user_id: new ObjectId(userId)
     });
+
+    console.log("DEBUG scenes GET: found project =", project);
 
     if (!project) {
       return Response.json({ detail: "Project not found" }, { status: 404 });
@@ -100,23 +103,39 @@ export async function POST(req, { params }) {
       ? pastScenes.map(s => `Scene Title: ${s.title || "Untitled"}\nScene Prompt: ${s.prompt}\nEnhanced Story: ${s.generated_text}`).join("\n\n")
       : "No previous events recorded.";
 
-    let relevantEdge = null;
-    let edgeEmotions = null;
-    if (assignedCharacters.length === 2 && project.canvas_edges) {
-      const c1 = assignedCharacters[0]._id.toString();
-      const c2 = assignedCharacters[1]._id.toString();
-      console.log("Checking edge for", c1, "and", c2);
-      relevantEdge = project.canvas_edges.find(e => 
-        (e.source === c1 && e.target === c2) || (e.source === c2 && e.target === c1)
-      );
-      console.log("Found relevantEdge:", relevantEdge);
-      if (relevantEdge && relevantEdge.emotions) {
-        edgeEmotions = relevantEdge.emotions;
+    // Gather directional relationship state for all character pairs in the scene
+    const relationships = {};
+    if (assignedCharacters.length > 1 && project.canvas_edges) {
+      for (let i = 0; i < assignedCharacters.length; i++) {
+        for (let j = 0; j < assignedCharacters.length; j++) {
+          if (i !== j) {
+            const charA = assignedCharacters[i];
+            const charB = assignedCharacters[j];
+            const nameKey = `${charA.name}->${charB.name}`;
+
+            const edge = project.canvas_edges.find(e =>
+              (e.source === charA._id.toString() && e.target === charB._id.toString()) ||
+              (e.source === charB._id.toString() && e.target === charA._id.toString())
+            );
+
+            let emotions = { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 };
+            if (edge && edge.emotions) {
+              if (edge.source === charA._id.toString() && edge.emotions.source_to_target) {
+                emotions = edge.emotions.source_to_target;
+              } else if (edge.target === charA._id.toString() && edge.emotions.target_to_source) {
+                emotions = edge.emotions.target_to_source;
+              } else if (typeof edge.emotions.trust === "number") {
+                emotions = edge.emotions;
+              }
+            }
+            relationships[nameKey] = emotions;
+          }
+        }
       }
     }
 
     let generatedText = generated_text;
-    let emotionDeltas = null;
+    let emotionDeltas = {};
 
     if (!generatedText) {
       // Call stateless FastAPI completions backend
@@ -125,42 +144,93 @@ export async function POST(req, { params }) {
         characters: assignedCharacters,
         tone: tone || "neutral",
         past_memories,
-        edge_emotions: edgeEmotions
+        relationships: relationships
       });
       generatedText = apiRes.data.scene;
       
       console.log("Python response:", apiRes.data);
 
-      if (apiRes.data.updated_emotions && relevantEdge) {
-        // Fallback if edgeEmotions was null initially
-        const currentEmotions = edgeEmotions || {
-          trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50
-        };
-        
-        // Calculate deltas
-        emotionDeltas = {};
-        const newEmotions = apiRes.data.updated_emotions;
-        const normalizedNewEmotions = {};
+      if (apiRes.data.updated_emotions && project.canvas_edges) {
+        const nameToChar = {};
+        assignedCharacters.forEach(c => {
+          nameToChar[c.name.toLowerCase()] = c;
+        });
 
-        Object.keys(newEmotions).forEach(key => {
-          const lowerKey = key.toLowerCase();
-          normalizedNewEmotions[lowerKey] = newEmotions[key];
-          if (currentEmotions[lowerKey] !== undefined) {
-            emotionDeltas[lowerKey] = {
-              previous: currentEmotions[lowerKey],
-              new: newEmotions[key],
-              delta: newEmotions[key] - currentEmotions[lowerKey]
-            };
+        let updatedEdges = [...project.canvas_edges];
+
+        Object.keys(apiRes.data.updated_emotions).forEach(key => {
+          const parts = key.split("->");
+          if (parts.length === 2) {
+            const fromName = parts[0].trim().toLowerCase();
+            const toName = parts[1].trim().toLowerCase();
+            const fromChar = nameToChar[fromName];
+            const toChar = nameToChar[toName];
+
+            if (fromChar && toChar) {
+              const fromId = fromChar._id.toString();
+              const toId = toChar._id.toString();
+              const newEms = apiRes.data.updated_emotions[key];
+
+              let edgeIndex = updatedEdges.findIndex(e =>
+                (e.source === fromId && e.target === toId) ||
+                (e.source === toId && e.target === fromId)
+              );
+
+              if (edgeIndex !== -1) {
+                const edge = updatedEdges[edgeIndex];
+                const isSource = edge.source === fromId;
+
+                let currentEms = { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 };
+                if (edge.emotions) {
+                  if (isSource && edge.emotions.source_to_target) {
+                    currentEms = edge.emotions.source_to_target;
+                  } else if (!isSource && edge.emotions.target_to_source) {
+                    currentEms = edge.emotions.target_to_source;
+                  } else if (typeof edge.emotions.trust === "number") {
+                    currentEms = edge.emotions;
+                  }
+                }
+
+                const deltas = {};
+                Object.keys(newEms).forEach(k => {
+                  const lowerK = k.toLowerCase();
+                  if (currentEms[lowerK] !== undefined) {
+                    deltas[lowerK] = {
+                      previous: currentEms[lowerK],
+                      new: newEms[k],
+                      delta: newEms[k] - currentEms[lowerK]
+                    };
+                  }
+                });
+                emotionDeltas[key] = deltas;
+
+                let updatedEdgeEmotions = edge.emotions && typeof edge.emotions.source_to_target === "object"
+                  ? { ...edge.emotions }
+                  : {
+                      source_to_target: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 },
+                      target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
+                    };
+
+                if (edge.emotions && typeof edge.emotions.trust === "number") {
+                  updatedEdgeEmotions.source_to_target = { ...edge.emotions };
+                  updatedEdgeEmotions.target_to_source = { ...edge.emotions };
+                }
+
+                if (isSource) {
+                  updatedEdgeEmotions.source_to_target = { ...updatedEdgeEmotions.source_to_target, ...newEms };
+                } else {
+                  updatedEdgeEmotions.target_to_source = { ...updatedEdgeEmotions.target_to_source, ...newEms };
+                }
+
+                updatedEdges[edgeIndex] = {
+                  ...edge,
+                  emotions: updatedEdgeEmotions
+                };
+              }
+            }
           }
         });
 
-        // Update DB
-        const updatedEdges = project.canvas_edges.map(e => {
-          if (e.id === relevantEdge.id) {
-            return { ...e, emotions: { ...e.emotions, ...normalizedNewEmotions } };
-          }
-          return e;
-        });
         await db.collection("projects").updateOne(
           { _id: new ObjectId(projectId) },
           { $set: { canvas_edges: updatedEdges } }

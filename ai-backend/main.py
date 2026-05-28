@@ -5,9 +5,12 @@ from dotenv import load_dotenv
 import os
 from memory.memory_store import add_memory, get_memories
 from vector_memory.memory_engine import store_memory, retrieve_memories
-from data.emotions import (
-    get_emotion_state,
-    update_emotion_state
+from data.relationships import (
+    get_relationship_state,
+    update_relationship_state
+)
+from vector_memory.memory_extractor import (
+    extract_memory
 )
 load_dotenv()
 
@@ -63,13 +66,27 @@ def generate_scene(data: dict):
     if not past_memories:
        past_memories = retrieve_memories(
        project_id="default_project",
-    current_scene=scene
-)
-    edge_emotions = data.get("edge_emotions", None)
+       current_scene=scene
+    )
     
-    edge_emotions_str = ""
-    if edge_emotions:
-        edge_emotions_str = f"Current Emotional State between characters:\n- Trust: {edge_emotions.get('trust')}%\n- Attachment: {edge_emotions.get('attachment')}%\n- Awkwardness: {edge_emotions.get('awkwardness')}%\n- Resentment: {edge_emotions.get('resentment')}%\n- Comfort: {edge_emotions.get('comfort')}%\n\n"
+    # Build/fetch directional relationships between all pairs of characters in the scene
+    relationships = data.get("relationships", {})
+    if not relationships and len(characters) > 1:
+        relationships = {}
+        for i in range(len(characters)):
+            for j in range(len(characters)):
+                if i != j:
+                    c1 = characters[i].get("name")
+                    c2 = characters[j].get("name")
+                    if c1 and c2:
+                        relationships[f"{c1}->{c2}"] = get_relationship_state(c1, c2)
+
+    relationships_str = ""
+    if relationships:
+        relationships_str = "Current Relationship Dynamics (directional emotions):\n"
+        for key, ems in relationships.items():
+            relationships_str += f"- {key} (how the first character feels towards the second): Trust: {ems.get('trust')}%, Attachment: {ems.get('attachment')}%, Awkwardness: {ems.get('awkwardness')}%, Resentment: {ems.get('resentment')}%, Comfort: {ems.get('comfort')}%\n"
+        relationships_str += "\n"
 
     characters_info = ""
     for idx, char in enumerate(characters):
@@ -109,6 +126,11 @@ SCENE PARAMETERS
 Target Emotional Tone: {tone}
 
 ========================
+CURRENT DIRECTIONAL RELATIONSHIP DYNAMICS
+========================
+{relationships_str}
+
+========================
 MEMORY & PAST EVENTS
 ========================
 {past_memories}
@@ -116,7 +138,7 @@ MEMORY & PAST EVENTS
 ========================
 CURRENT SCENE PROMPT
 ========================
-{edge_emotions_str}{scene}
+{scene}
 
 ========================
 YOUR TASK & CRITICAL RULES
@@ -127,21 +149,37 @@ YOUR TASK & CRITICAL RULES
 4. Dialogue should feel human and natural (use short realistic sentences, pauses, realistic reactions).
 5. DO NOT use fantasy writing, Shakespearean prose, fanfiction tropes, exaggerated poetry, melodrama, or anime exposition.
 6. Enhance the environment cinematically (weather, lighting, sounds, atmosphere) but keep it simple and grounded.
+7. REALISTIC EMOTIONAL LIFELIKE SHIFTS (CRITICAL):
+   - Real-world relationship dynamics change slowly, subtly, and unevenly.
+   - Do NOT make massive jumps in scores (e.g., trust going from 50% to 80% in one brief talk is highly unrealistic). Keep typical shifts incremental (usually 1% to 8% max per scene).
+   - Reflect complex, non-ideal human psychology:
+     - Characters can get closer (attachment increases) but simultaneously feel more vulnerable or awkward (awkwardness might also increase).
+     - Emotion updates must be asymmetric. If character A feels a surge of trust or attachment, character B might remain guarded, feel pressured, or even feel increased resentment. 
+     - Do not mirror emotions perfectly between the characters. Each direction of the relationship key must be updated independently based on how that specific character perceived the interaction.
 
 **OUTPUT FORMAT:**
 You must return your response as a valid JSON object with EXACTLY two keys:
 1. "scene": The full text of the generated scene.
-2. "updated_emotions": A JSON object containing updated 0-100 values for trust, attachment, awkwardness, resentment, and comfort after evaluating how the interaction affected their relationship. If there is no relationship edge, just return an empty object.
+2. "updated_emotions": A JSON object containing updated 0-100 values for trust, attachment, awkwardness, resentment, and comfort for each directional relationship affected by this scene. Use the format "CharacterA_Name->CharacterB_Name" as the keys. Only include pair directions that are actually affected or actively interact in the scene.
 
 Example JSON:
 {{
   "scene": "The text of the scene goes here...",
   "updated_emotions": {{
-    "trust": 55,
-    "attachment": 50,
-    "awkwardness": 10,
-    "resentment": 5,
-    "comfort": 45
+    "Elena->Aisha": {{
+      "trust": 55,
+      "attachment": 50,
+      "awkwardness": 10,
+      "resentment": 5,
+      "comfort": 45
+    }},
+    "Aisha->Elena": {{
+      "trust": 48,
+      "attachment": 52,
+      "awkwardness": 12,
+      "resentment": 6,
+      "comfort": 40
+    }}
   }}
 }}
 """
@@ -177,11 +215,30 @@ Example JSON:
     generated_scene = response_data.get("scene", response_text)
     updated_emotions = response_data.get("updated_emotions", None)
 
+    memory_data = extract_memory(generated_scene)
+    
+    print("\n" + "="*50)
+    print("EXTRACTED EMOTIONAL MEMORY OBJECT:")
+    print(json.dumps(memory_data, indent=2))
+    print("="*50 + "\n")
+
     store_memory(
         project_id="default_project",
-        scene_text=generated_scene
+        memory_data=memory_data
     )
     add_memory(scene)
+
+    if updated_emotions:
+        for key, ems in updated_emotions.items():
+            parts = key.split("->")
+            if len(parts) == 2:
+                c1, c2 = parts[0].strip(), parts[1].strip()
+                curr = get_relationship_state(c1, c2)
+                deltas = {}
+                for k, v in ems.items():
+                    if k in curr:
+                        deltas[k] = v - curr[k]
+                update_relationship_state(c1, c2, deltas)
 
     return {
         "scene": generated_scene,

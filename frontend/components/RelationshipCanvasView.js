@@ -42,12 +42,10 @@ export default function RelationshipCanvasView() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingEdgeId, setEditingEdgeId] = useState(null);
   const [edgeLabelInput, setEdgeLabelInput] = useState("");
+  const [activeDirectionTab, setActiveDirectionTab] = useState("source_to_target"); // "source_to_target" or "target_to_source"
   const [edgeEmotions, setEdgeEmotions] = useState({
-    trust: 50,
-    attachment: 50,
-    awkwardness: 0,
-    resentment: 0,
-    comfort: 50
+    source_to_target: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 },
+    target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
   });
 
   const nodeTypes = useMemo(() => ({ characterNode: CharacterNode }), []);
@@ -90,13 +88,25 @@ export default function RelationshipCanvasView() {
     event.preventDefault();
     setEditingEdgeId(edge.id);
     setEdgeLabelInput(edge.label || "");
-    setEdgeEmotions(edge.emotions || {
-      trust: 50,
-      attachment: 50,
-      awkwardness: 0,
-      resentment: 0,
-      comfort: 50
-    });
+    
+    let source_to_target = { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 };
+    let target_to_source = { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 };
+
+    if (edge.emotions) {
+      if (edge.emotions.source_to_target) {
+        source_to_target = { ...source_to_target, ...edge.emotions.source_to_target };
+      }
+      if (edge.emotions.target_to_source) {
+        target_to_source = { ...target_to_source, ...edge.emotions.target_to_source };
+      }
+      if (typeof edge.emotions.trust === "number") {
+        source_to_target = { ...source_to_target, ...edge.emotions };
+        target_to_source = { ...target_to_source, ...edge.emotions };
+      }
+    }
+
+    setEdgeEmotions({ source_to_target, target_to_source });
+    setActiveDirectionTab("source_to_target");
   };
 
   const handleLabelSave = (e) => {
@@ -118,6 +128,11 @@ export default function RelationshipCanvasView() {
     await saveCanvasState(activeProject.id, nodes, edges);
     setIsSaving(false);
   };
+
+  // Helper to resolve characters names for tabs
+  const activeEditingEdge = edges.find(e => e.id === editingEdgeId);
+  const sourceName = activeEditingEdge ? (characters.find(c => c.id === activeEditingEdge.source)?.name || "Character A") : "Character A";
+  const targetName = activeEditingEdge ? (characters.find(c => c.id === activeEditingEdge.target)?.name || "Character B") : "Character B";
 
   return (
     <div className="flex-1 w-full h-full relative bg-zinc-950">
@@ -154,53 +169,89 @@ export default function RelationshipCanvasView() {
       </ReactFlow>
 
       {editingEdgeId && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl w-96">
-            <h3 className="text-white font-bold mb-4">Edit Relationship</h3>
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl w-[450px]">
+            <h3 className="text-white font-bold mb-4 text-lg">Edit Relationship</h3>
             <form onSubmit={handleLabelSave}>
-              <div className="mb-4">
-                <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">Relationship Label</label>
+              <div className="mb-6">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1.5 font-bold">Relationship Connection</label>
                 <input
                   type="text"
                   autoFocus
                   value={edgeLabelInput}
                   onChange={(e) => setEdgeLabelInput(e.target.value)}
-                  placeholder="e.g. Rivals, Siblings..."
-                  className="w-full bg-zinc-950 text-white border border-zinc-800 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500"
+                  placeholder="e.g. Rivals, Siblings, Best Friends..."
+                  className="w-full bg-zinc-950 text-white border border-zinc-800 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 text-sm font-semibold"
                 />
               </div>
 
-              <div className="space-y-4 mb-6">
-                <h4 className="text-[10px] uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">Emotional Dynamics</h4>
-                {Object.keys(edgeEmotions).map((emotion) => (
-                  <div key={emotion}>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs capitalize text-zinc-300 font-semibold">{emotion}</label>
-                      <span className="text-xs font-mono text-zinc-500">{edgeEmotions[emotion]}%</span>
+              <div className="mb-6">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-2 font-bold">Directional Dynamics</label>
+                <div className="flex gap-2 mb-4 bg-zinc-950 p-1 rounded-xl border border-zinc-850">
+                  <button
+                    type="button"
+                    onClick={() => setActiveDirectionTab("source_to_target")}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      activeDirectionTab === "source_to_target"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-500/10"
+                        : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {sourceName} ➔ {targetName}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDirectionTab("target_to_source")}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      activeDirectionTab === "target_to_source"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-500/10"
+                        : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    {targetName} ➔ {sourceName}
+                  </button>
+                </div>
+
+                <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+                  {Object.keys(edgeEmotions[activeDirectionTab] || {}).map((emotion) => (
+                    <div key={emotion} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs capitalize text-zinc-300 font-bold">{emotion}</label>
+                        <span className="text-xs font-mono text-purple-400 font-bold">{(edgeEmotions[activeDirectionTab] || {})[emotion]}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={(edgeEmotions[activeDirectionTab] || {})[emotion] ?? 50}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setEdgeEmotions(prev => ({
+                            ...prev,
+                            [activeDirectionTab]: {
+                              ...prev[activeDirectionTab],
+                              [emotion]: val
+                            }
+                          }));
+                        }}
+                        className="w-full accent-purple-500 h-1.5 bg-zinc-850 rounded-lg appearance-none cursor-pointer"
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={edgeEmotions[emotion]}
-                      onChange={(e) => setEdgeEmotions({ ...edgeEmotions, [emotion]: parseInt(e.target.value) })}
-                      className="w-full accent-purple-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
-                    />
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2.5 pt-2 border-t border-zinc-850">
                 <button
                   type="button"
                   onClick={() => setEditingEdgeId(null)}
-                  className="px-4 py-2 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer text-sm font-semibold"
+                  className="px-4 py-2 hover:bg-zinc-800/50 text-zinc-400 hover:text-white rounded-xl transition-all cursor-pointer text-sm font-bold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors cursor-pointer text-sm font-semibold"
+                  className="px-5 py-2.5 bg-white text-black hover:bg-zinc-200 rounded-xl transition-all cursor-pointer text-sm font-bold active:scale-95 shadow-lg shadow-white/5"
                 >
                   Save Dynamics
                 </button>

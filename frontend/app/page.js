@@ -5,15 +5,24 @@ import { useStore } from "../store/useStore";
 import Sidebar from "../components/Sidebar";
 import ProjectDashboard from "../components/ProjectDashboard";
 import AuthCard from "../components/AuthCard";
-import { Sparkles, Film, LogIn, ArrowRight, X } from "lucide-react";
+import { Sparkles, Film, LogIn, ArrowRight, X, Loader2 } from "lucide-react";
 
 export default function Home() {
-  const { user, initAuth, activeProject } = useStore();
+  const { user, initAuth, activeProject, authInitialized } = useStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     initAuth();
   }, []);
+
+  // Prevent flash of landing page during session restoration
+  if (!authInitialized) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+      </div>
+    );
+  }
 
   // Landing Page (Not Logged In)
   if (!user) {

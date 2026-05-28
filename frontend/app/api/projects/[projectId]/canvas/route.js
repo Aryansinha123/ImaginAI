@@ -14,10 +14,13 @@ export async function GET(req, { params }) {
     const client = await clientPromise;
     const db = client.db("imaginai_db");
 
+    console.log("DEBUG canvas GET: projectId =", projectId, "userId =", userId);
     const project = await db.collection("projects").findOne({
       _id: new ObjectId(projectId),
       user_id: new ObjectId(userId)
     });
+
+    console.log("DEBUG canvas GET: found project =", project);
 
     if (!project) {
       return Response.json({ detail: "Project not found" }, { status: 404 });

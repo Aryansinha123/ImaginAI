@@ -175,3 +175,12 @@ New Scene
 Semantic Retrieval
       ↓
 Relevant Memories Injected
+
+
+
+
+emotions are directional different for both person involved
+
+
+
+so currently emotions aree getting updated globally like for each relation one things but in real world it does not work like that i want that to be updated seperately for both characters like if a scene involve 3 people A B C then relationshipbetween each pair should be differrent and a to b and b to a should be considred different i have given relationships.py in data folder extend that logic also impprove the prompt and also on scene generation page display the updated score and on canvas give the option to updated emotions for both characetsrs indiviadia;;y not common update in relationship
