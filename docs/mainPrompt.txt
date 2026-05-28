@@ -1,0 +1,282 @@
+Build a cinematic AI storytelling platform called “EchoVerse”.
+
+The platform should feel modern, immersive, emotional, cinematic, futuristic, and highly interactive.
+
+The UI should have a dark cinematic aesthetic with smooth animations, glassmorphism cards, subtle gradients, glowing accents, and premium storytelling-app vibes.
+
+CORE CONCEPT:
+Users create projects containing multiple cinematic scenes.
+Each project acts like an alternate reality / story universe.
+
+Inside a project:
+
+* users create reusable characters
+* each scene can use selected characters
+* scenes can be reordered like movie sequences
+* scenes maintain emotional continuity and memory
+
+IMPORTANT ARCHITECTURE:
+
+PROJECT
+├── Characters
+├── Scenes
+├── Memories
+└── Timeline
+
+Each project contains:
+
+1. Character Library
+2. Scene Timeline
+3. Emotional Memory System
+
+====================================================
+MAIN APP STRUCTURE
+==================
+
+Create a cinematic dashboard layout.
+
+LEFT SIDEBAR:
+
+* Projects
+* Characters
+* Timeline
+* Memories
+* Scene Studio
+* Settings
+
+TOP BAR:
+
+* Current project name
+* Add Scene button
+* Generate Scene button
+* Timeline View toggle
+* Cinematic Mode toggle
+
+MAIN CONTENT AREA:
+Dynamic workspace.
+
+====================================================
+PROJECT SYSTEM
+==============
+
+Users can:
+
+* create projects
+* rename projects
+* delete projects
+* switch between projects
+
+Each project contains:
+
+* its own characters
+* its own scenes
+* separate emotional memories
+* separate timelines
+
+====================================================
+CHARACTER MANAGEMENT SYSTEM
+===========================
+
+At project root level:
+users can create characters.
+
+Character fields:
+
+* name
+* age
+* gender
+* height
+* hairstyle
+* eye color
+* skin tone
+* clothing style
+* personality traits
+* emotional traits
+* speaking style
+* relationship type
+* voice style
+
+Allow:
+
+* character image upload
+* AI-generated character image placeholder
+* character cards with cinematic styling
+
+Display characters in a horizontal cinematic card layout.
+
+Each character card should show:
+
+* portrait
+* name
+* emotional summary
+* relationship type
+
+====================================================
+SCENE SYSTEM
+============
+
+A project contains multiple scenes.
+
+Each scene should have:
+
+* title
+* description
+* emotional tone
+* selected characters
+* generated cinematic output
+* timeline order
+
+Scenes should appear as:
+cinematic timeline cards.
+
+Users should be able to:
+
+* create scene
+* delete scene
+* duplicate scene
+* reorder scenes via drag-and-drop
+* open scene editor
+* assign characters to scene
+
+IMPORTANT:
+Characters are NOT recreated per scene.
+
+Characters exist globally inside project root.
+
+Inside each scene:
+users simply select characters from project character library.
+
+====================================================
+SCENE CHARACTER ASSIGNMENT
+==========================
+
+Inside scene editor:
+show available project characters as selectable cinematic cards.
+
+Users should:
+
+* click characters to assign them to current scene
+* see selected characters highlighted
+* support multiple characters per scene
+
+Example:
+Scene 1 → Aisha + Ryan
+Scene 2 → Ryan only
+Scene 3 → Aisha + Emma + Ryan
+
+====================================================
+SCENE EDITOR UI
+===============
+
+The scene editor should include:
+
+1. Scene Prompt Input
+   Large cinematic textarea.
+
+2. Emotional Tone Selector
+   Examples:
+
+* romantic
+* awkward
+* tense
+* nostalgic
+* emotional
+* melancholic
+* suspenseful
+
+3. Assigned Characters Section
+   Character cards selectable.
+
+4. Generated Cinematic Output
+   Beautiful formatted immersive text display.
+
+5. Generated Scene Frames
+   Placeholder cinematic frame gallery.
+
+====================================================
+TIMELINE SYSTEM
+===============
+
+Scenes should visually connect like a cinematic timeline.
+
+Allow:
+
+* drag-and-drop scene reordering
+* branching scene possibilities later
+* emotional continuity indicators
+
+Timeline cards should display:
+
+* scene number
+* title
+* emotional tone
+* assigned characters
+* preview image placeholder
+
+====================================================
+MEMORY & CONTINUITY SYSTEM
+==========================
+
+The system should feel persistent.
+
+Characters remember:
+
+* previous conversations
+* emotional moments
+* confessions
+* betrayals
+* awkward tension
+
+Display emotional continuity indicators between scenes.
+
+====================================================
+DESIGN STYLE
+============
+
+Use:
+
+* dark cinematic UI
+* black + zinc + subtle neon palette
+* smooth motion animations
+* glassmorphism panels
+* cinematic typography
+* emotional immersive atmosphere
+
+The UI should feel like:
+
+* Netflix + AI storytelling engine
+* futuristic narrative operating system
+* cinematic imagination simulator
+
+====================================================
+TECH STACK
+==========
+
+Frontend:
+
+* Next.js App Router
+* Tailwind CSS
+* Framer Motion
+* Zustand
+
+Focus heavily on:
+
+* reusable components
+* scalable architecture
+* cinematic UX
+* immersive interactions
+* modular scene system
+* clean folder structure
+
+====================================================
+IMPORTANT UX GOAL
+=================
+
+The app should NOT feel like:
+
+* a chatbot
+* a form app
+* a CRUD dashboard
+
+It should feel like:
+an AI-powered cinematic imagination studio.

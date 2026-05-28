@@ -1,16 +1,13 @@
-# Python Virtual Environment
-ai-backend/venv/
-
-# Python bytecode
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Environment variables (sensitive data)
-ai-backend/.env
+venv/
 .env
-.env.local
 
-# OS files
-.DS_Store
-Thumbs.db
+# Vector DB
+chroma_db/
+
+# Node
+node_modules/
+.next/

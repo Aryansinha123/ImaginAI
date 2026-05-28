@@ -1,0 +1,325 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useStore } from "../store/useStore";
+import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen } from "lucide-react";
+
+export default function SceneStudioView({ activeScene, onSelectScene }) {
+  const { activeProject, characters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
+
+  // Local Editor State
+  const [title, setTitle] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [tone, setTone] = useState("emotional");
+  const [selectedCharIds, setSelectedCharIds] = useState([]);
+  const [generatedText, setGeneratedText] = useState("");
+
+  // Sync state if activeScene is selected
+  useEffect(() => {
+    if (activeScene) {
+      setTitle(activeScene.title || "");
+      setPrompt(activeScene.prompt || "");
+      setTone(activeScene.tone || "emotional");
+      setSelectedCharIds(activeScene.characterIds || []);
+      setGeneratedText(activeScene.generated_text || "");
+    } else {
+      setTitle("");
+      setPrompt("");
+      setTone("emotional");
+      setSelectedCharIds([]);
+      setGeneratedText("");
+    }
+  }, [activeScene]);
+
+  const toggleCharacter = (charId) => {
+    setSelectedCharIds((prev) =>
+      prev.includes(charId) ? prev.filter((id) => id !== charId) : [...prev, charId]
+    );
+  };
+
+  const handleGenerate = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || !prompt.trim() || isGenerating) return;
+
+    if (activeScene) {
+      // Regenerating/Updating active scene
+      setGeneratedText("");
+      try {
+        const updated = await regenerateScene(activeScene.id, prompt.trim(), selectedCharIds, title.trim(), tone);
+        if (updated) {
+          setGeneratedText(updated.generated_text);
+          onSelectScene(updated);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    } else {
+      // Create new scene
+      const created = await generateScene(prompt.trim(), selectedCharIds, title.trim(), tone);
+      if (created) {
+        onSelectScene(created);
+      }
+    }
+  };
+
+  const saveMetadataOnly = async () => {
+    if (!activeScene || !title.trim()) return;
+    await updateScene(activeProject.id, activeScene.id, {
+      title: title.trim(),
+      prompt: prompt.trim(),
+      tone,
+      characterIds: selectedCharIds
+    });
+    alert("Scene metadata saved successfully!");
+  };
+
+  const tones = ["romantic", "awkward", "tense", "nostalgic", "emotional", "melancholic", "suspenseful"];
+
+  const getToneBorder = (t) => {
+    if (tone !== t) return "border-zinc-800 text-zinc-400 hover:border-zinc-700";
+    switch (t) {
+      case "romantic":
+        return "border-pink-500/50 bg-pink-500/10 text-pink-400 shadow-[0_0_15px_rgba(244,63,94,0.1)]";
+      case "tense":
+        return "border-red-500/50 bg-red-500/10 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.1)]";
+      case "awkward":
+        return "border-amber-500/50 bg-amber-500/10 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.1)]";
+      case "nostalgic":
+        return "border-blue-500/50 bg-blue-500/10 text-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.1)]";
+      case "melancholic":
+        return "border-indigo-500/50 bg-indigo-500/10 text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.1)]";
+      case "suspenseful":
+        return "border-orange-500/50 bg-orange-500/10 text-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.1)]";
+      default:
+        return "border-purple-500/50 bg-purple-500/10 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.1)]";
+    }
+  };
+
+  return (
+    <div className="flex-1 flex overflow-hidden select-text">
+      {/* Editor Panel */}
+      <div className="w-[55%] border-r border-zinc-850 flex flex-col overflow-hidden bg-zinc-950/10">
+        {/* Workspace Scene Selector Header */}
+        <div className="p-6 border-b border-zinc-850 flex items-center justify-between shrink-0">
+          <div className="min-w-0">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400 block font-semibold">
+              Studio
+            </span>
+            <select
+              value={activeScene ? activeScene.id : ""}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val) {
+                  onSelectScene(null);
+                } else {
+                  const sc = scenes.find((s) => s.id === val);
+                  onSelectScene(sc);
+                }
+              }}
+              className="mt-0.5 bg-transparent border-none text-white font-bold text-lg outline-none focus:ring-0 max-w-[200px] cursor-pointer"
+            >
+              <option value="" className="bg-zinc-950 text-white">Create New Scene...</option>
+              {scenes.map((s, idx) => (
+                <option key={s.id} value={s.id} className="bg-zinc-950 text-white">
+                  Scene {idx + 1}: {s.title || "Untitled"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {activeScene && (
+            <button
+              onClick={() => onSelectScene(null)}
+              className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-xs font-semibold text-zinc-300 rounded-xl transition-all cursor-pointer"
+            >
+              New Scene Draft
+            </button>
+          )}
+        </div>
+
+        {/* Inputs Scrollable */}
+        <form onSubmit={handleGenerate} className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin pr-3">
+          {/* Title */}
+          <div>
+            <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1.5 font-semibold">
+              Scene Title
+            </label>
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={isGenerating}
+              placeholder="e.g. Rain-slicked Alleyway Confession"
+              className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
+            />
+          </div>
+
+          {/* Emotional Tone Selector */}
+          <div>
+            <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1.5 font-semibold">
+              Emotional Tone
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {tones.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={isGenerating}
+                  onClick={() => setTone(t)}
+                  className={`px-3 py-1.5 border text-xs font-semibold rounded-xl uppercase tracking-wider transition-all duration-300 cursor-pointer ${getToneBorder(
+                    t
+                  )}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Selectable Characters Drawer */}
+          <div>
+            <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-2 font-semibold flex items-center gap-1">
+              <Users className="w-3.5 h-3.5" />
+              Bind Characters to Scene
+            </label>
+
+            {characters.length === 0 ? (
+              <div className="p-4 bg-zinc-900/50 border border-zinc-800 rounded-2xl text-center">
+                <p className="text-xs text-zinc-500">No characters created yet. Add one in the Characters tab.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {characters.map((char) => {
+                  const isSelected = selectedCharIds.includes(char.id);
+                  return (
+                    <div
+                      key={char.id}
+                      onClick={() => !isGenerating && toggleCharacter(char.id)}
+                      className={`p-3 rounded-2xl border transition-all duration-200 cursor-pointer flex items-center gap-3 relative ${
+                        isSelected
+                          ? "bg-purple-500/5 border-purple-500/40 shadow-sm"
+                          : "bg-zinc-950/20 border-zinc-850 hover:bg-zinc-900/30"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center font-bold text-xs text-zinc-400">
+                        {char.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{char.name}</p>
+                        <p className="text-[9px] text-zinc-500 truncate">{char.relationship || "Global character"}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Prompt */}
+          <div>
+            <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1.5 font-semibold">
+              Scene Prompts & Narrative beats
+            </label>
+            <textarea
+              required
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              disabled={isGenerating}
+              placeholder="Describe the action... Elena leans against the copper pipes under the neon glow. Aisha pulls up her collar, hiding a hesitant smile. They speak in whispers..."
+              className="w-full h-32 px-4 py-3 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm leading-relaxed resize-none scrollbar-thin"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex gap-4 pt-2">
+            <button
+              type="submit"
+              disabled={isGenerating || !title.trim() || !prompt.trim()}
+              className="flex-1 py-3.5 bg-white text-black hover:bg-zinc-200 disabled:bg-zinc-850 disabled:text-zinc-650 rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99] shadow-lg shadow-white/5"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-zinc-600" />
+                  <span>Drafting Cinematic Script...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-black" />
+                  <span>Generate Cinematic Script</span>
+                </>
+              )}
+            </button>
+            {activeScene && (
+              <button
+                type="button"
+                onClick={saveMetadataOnly}
+                disabled={isGenerating}
+                className="px-6 py-3.5 border border-zinc-800 hover:bg-zinc-900 text-zinc-300 hover:text-white rounded-xl font-semibold transition-all text-sm cursor-pointer"
+              >
+                Save Details Only
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {/* Cinematic Screenplay Output Panel */}
+      <div className="flex-1 flex flex-col overflow-hidden bg-zinc-900">
+        <div className="p-6 border-b border-zinc-850 flex items-center gap-2 shrink-0">
+          <BookOpen className="w-4 h-4 text-purple-400" />
+          <h3 className="text-sm uppercase font-mono tracking-widest text-zinc-300 font-bold">
+            Cinematic Screenplay Output
+          </h3>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-8 scrollbar-thin space-y-6">
+          {isGenerating ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8">
+              <Loader2 className="w-8 h-8 text-purple-500 animate-spin mb-4" />
+              <p className="text-sm font-semibold text-zinc-400">Rendering alternate universe sequence...</p>
+              <p className="text-xs text-zinc-550 mt-1 max-w-[240px]">
+                The EchoVerse engine is compiling character profiles, relationship dynamics, and memories.
+              </p>
+            </div>
+          ) : generatedText ? (
+            <div className="space-y-8">
+              <div className="text-zinc-200 text-base leading-8 whitespace-pre-wrap font-serif bg-zinc-950/45 p-6 rounded-2xl shadow-inner border border-zinc-850 select-text selection:bg-purple-500/20">
+                {generatedText}
+              </div>
+
+              {/* Generated Widescreen Scene Frames Placeholder Gallery */}
+              <div className="space-y-3.5 pt-4">
+                <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold">
+                  Generated Scene Frames (Storyboards)
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+                    <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+                      Frame 01: Establishing Shot
+                    </span>
+                  </div>
+                  <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+                    <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+                      Frame 02: Character Focus
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-center p-8 border border-dashed border-zinc-850 rounded-3xl">
+              <AlertCircle className="w-8 h-8 text-zinc-700 mb-3" />
+              <p className="text-sm font-semibold text-zinc-500">Scene script empty</p>
+              <p className="text-xs text-zinc-650 mt-1 max-w-[240px]">
+                Fill out the left form and click generate to trigger uvicorn completions.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
