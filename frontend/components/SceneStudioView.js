@@ -425,25 +425,39 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                 </div>
               )}
 
-              {/* Generated Widescreen Scene Frames Placeholder Gallery */}
+              {/* Generated Widescreen Scene Frames / Storyboard */}
               <div className="space-y-3.5 pt-4">
                 <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold">
                   Generated Scene Frames (Storyboards)
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
-                    <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
-                      Frame 01: Establishing Shot
+                {activeScene && activeScene.image ? (
+                  <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg">
+                    <img 
+                      src={`http://127.0.0.1:8000/generated_images/${activeScene.image}`}
+                      alt="Generated cinematic scene frame"
+                      className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-75 pointer-events-none" />
+                    <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-350 font-bold">
+                      Frame 01: Generated Cinematic Still
                     </span>
                   </div>
-                  <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
-                    <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
-                      Frame 02: Character Focus
-                    </span>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+                      <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+                        Frame 01: Establishing Shot
+                      </span>
+                    </div>
+                    <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+                      <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+                        Frame 02: Character Focus
+                      </span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ) : (

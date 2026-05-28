@@ -44,7 +44,9 @@ export async function GET(req, { params }) {
       tone: s.tone || "neutral",
       characterIds: s.characterIds || [],
       order: s.order !== undefined ? s.order : 0,
-      created_at: s.created_at
+      created_at: s.created_at,
+      image: s.image,
+      direction: s.direction
     }));
 
     return Response.json(mapped);
@@ -100,7 +102,12 @@ export async function POST(req, { params }) {
       .toArray();
 
     const past_memories = pastScenes.length > 0 
-      ? pastScenes.map(s => `Scene Title: ${s.title || "Untitled"}\nScene Prompt: ${s.prompt}\nEnhanced Story: ${s.generated_text}`).join("\n\n")
+      ? pastScenes.map(s => {
+          const truncatedStory = s.generated_text 
+            ? (s.generated_text.length > 800 ? s.generated_text.substring(0, 800) + "... [truncated]" : s.generated_text)
+            : "No text generated.";
+          return `Scene Title: ${s.title || "Untitled"}\nScene Prompt: ${s.prompt}\nEnhanced Story: ${truncatedStory}`;
+        }).join("\n\n")
       : "No previous events recorded.";
 
     // Gather directional relationship state for all character pairs in the scene
@@ -137,6 +144,7 @@ export async function POST(req, { params }) {
     let generatedText = generated_text;
     let emotionDeltas = {};
     let directionData = null;
+    let imageFilename = null;
 
     if (!generatedText) {
       // Call stateless FastAPI completions backend
@@ -149,6 +157,7 @@ export async function POST(req, { params }) {
       });
       generatedText = apiRes.data.scene;
       directionData = apiRes.data.direction;
+      imageFilename = apiRes.data.image || null;
       
       console.log("Python response:", apiRes.data);
 
@@ -246,13 +255,14 @@ export async function POST(req, { params }) {
       user_id: new ObjectId(userId),
       title: title?.trim() || "Untitled Scene",
       prompt: scene,
-      generated_text: generatedText,
+      generated_text: generatedText || "",
       tone: tone || "neutral",
       characterIds: characterIds || (character ? [character.id || character._id] : []),
       order: sceneCount,
       created_at: new Date().toISOString(),
-      emotion_deltas: emotionDeltas,
-      direction: directionData
+      emotion_deltas: emotionDeltas || {},
+      direction: directionData || null,
+      image: imageFilename
     };
 
     const result = await db.collection("scenes").insertOne(newScene);
@@ -263,13 +273,14 @@ export async function POST(req, { params }) {
       user_id: userId,
       title: newScene.title,
       prompt: scene,
-      generated_text: generatedText,
+      generated_text: generatedText || "",
       tone: newScene.tone,
       characterIds: newScene.characterIds,
       order: newScene.order,
       created_at: newScene.created_at,
-      emotion_deltas: emotionDeltas,
-      direction: directionData
+      emotion_deltas: emotionDeltas || {},
+      direction: directionData || null,
+      image: newScene.image || null
     });
   } catch (error) {
     console.error("Create Scene Error:", error);

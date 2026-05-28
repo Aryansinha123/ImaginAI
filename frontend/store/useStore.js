@@ -355,6 +355,8 @@ export const useStore = create((set, get) => ({
         tone: tone || "neutral"
       });
       const generatedText = genRes.data.generated_text;
+      const direction = genRes.data.direction;
+      const image = genRes.data.image;
 
       await API.delete(`/projects/${activeProject.id}/scenes/${genRes.data.id}`);
 
@@ -363,7 +365,9 @@ export const useStore = create((set, get) => ({
         prompt: scenePrompt,
         tone: tone || "neutral",
         characterIds,
-        generated_text: generatedText
+        generated_text: generatedText,
+        direction,
+        image
       });
 
       set((state) => ({

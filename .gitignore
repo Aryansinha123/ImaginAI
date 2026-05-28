@@ -11,3 +11,6 @@ chroma_db/
 # Node
 node_modules/
 .next/
+
+# Generated assets
+ai-backend/generated_images/

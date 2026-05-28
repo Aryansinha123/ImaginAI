@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from groq import Groq
 from dotenv import load_dotenv
 import os
@@ -13,9 +14,35 @@ from vector_memory.memory_extractor import (
     extract_memory
 )
 from director_engine import generate_direction
+from image_generator import generate_scene_image
+
+from visual_prompt_engine import (
+    build_visual_prompt
+)
+from pydantic import BaseModel
+from typing import List, Dict, Optional, Any
+
+class SceneRequest(BaseModel):
+    scene: str
+    characters: Optional[List[Dict[str, Any]]] = []
+    character: Optional[Dict[str, Any]] = None
+    tone: Optional[str] = "neutral"
+    past_memories: Optional[str] = None
+    relationships: Optional[Dict[str, Any]] = {}
+
 load_dotenv()
 
 app = FastAPI()
+
+# Ensure generated_images directory exists
+os.makedirs("generated_images", exist_ok=True)
+
+# Mount the static directory for generated images
+app.mount(
+    "/generated_images",
+    StaticFiles(directory="generated_images"),
+    name="generated_images"
+)
 
 # Configure CORS
 app.add_middleware(
@@ -54,7 +81,8 @@ def chat(prompt: str):
     }
 
 @app.post("/generate-scene")
-def generate_scene(data: dict):
+def generate_scene(request_data: SceneRequest):
+    data = request_data.dict()
     characters = data.get("characters", [])
     if not characters and data.get("character"):
         characters = [data.get("character")]
@@ -65,10 +93,14 @@ def generate_scene(data: dict):
     # Read past memories sent from Next.js (isolated db memory), fallback to local memory_store
     past_memories = data.get("past_memories")
     if not past_memories:
-       past_memories = retrieve_memories(
-       project_id="default_project",
-       current_scene=scene
-    )
+        past_memories = retrieve_memories(
+            project_id="default_project",
+            current_scene=scene
+        )
+    
+    # Truncate past_memories to prevent exceeding Groq TPM (tokens per minute) limit
+    if past_memories and len(past_memories) > 3000:
+        past_memories = past_memories[:3000] + "\n... [Truncated for brevity to fit rate limits]"
     
     # Build/fetch directional relationships between all pairs of characters in the scene
     relationships = data.get("relationships", {})
@@ -81,7 +113,7 @@ def generate_scene(data: dict):
                     c2 = characters[j].get("name")
                     if c1 and c2:
                         relationships[f"{c1}->{c2}"] = get_relationship_state(c1, c2)
-
+ 
     relationships_str = ""
     if relationships:
         relationships_str = "Current Relationship Dynamics (directional emotions):\n"
@@ -186,18 +218,35 @@ Example JSON:
 """
 
     import json
-    completion = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            }
-        ],
-        response_format={"type": "json_object"}
-    )
     
-    response_text = completion.choices[0].message.content
+    messages = [
+        {
+            "role": "system",
+            "content": system_prompt
+        },
+        {
+            "role": "user",
+            "content": f"Generate the scene screenplay based on the prompt: '{scene}'. Respond with a JSON object containing the 'scene' and 'updated_emotions' keys."
+        }
+    ]
+
+    # Try JSON mode first, fall back to plain text if Groq rejects it
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            response_format={"type": "json_object"},
+            max_tokens=4096
+        )
+        response_text = completion.choices[0].message.content
+    except Exception as json_err:
+        print(f"JSON mode failed, retrying without JSON mode: {json_err}")
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            max_tokens=4096
+        )
+        response_text = completion.choices[0].message.content
     
     cleaned_text = response_text.strip()
     if cleaned_text.startswith("```json"):
@@ -211,40 +260,73 @@ Example JSON:
     try:
         response_data = json.loads(cleaned_text)
     except Exception:
-        response_data = {"scene": response_text, "updated_emotions": None}
-        
-    generated_scene = response_data.get("scene", response_text)
-    updated_emotions = response_data.get("updated_emotions", None)
+        response_data = None
 
-    memory_data = extract_memory(generated_scene)
-    
-    print("\n" + "="*50)
-    print("EXTRACTED EMOTIONAL MEMORY OBJECT:")
-    print(json.dumps(memory_data, indent=2))
-    print("="*50 + "\n")
+    # Handle cases where Groq returns a list, string, or malformed data
+    if isinstance(response_data, dict):
+        generated_scene = response_data.get("scene", response_text)
+        updated_emotions = response_data.get("updated_emotions", None)
+    elif isinstance(response_data, list) and len(response_data) > 0 and isinstance(response_data[0], dict):
+        generated_scene = response_data[0].get("scene", response_text)
+        updated_emotions = response_data[0].get("updated_emotions", None)
+    else:
+        generated_scene = response_text
+        updated_emotions = None
 
-    store_memory(
-        project_id="default_project",
-        memory_data=memory_data
-    )
-    add_memory(scene)
+    # --- Memory extraction (non-blocking) ---
+    try:
+        memory_data = extract_memory(generated_scene)
+        print("\n" + "="*50)
+        print("EXTRACTED EMOTIONAL MEMORY OBJECT:")
+        print(json.dumps(memory_data, indent=2))
+        print("="*50 + "\n")
+        store_memory(
+            project_id="default_project",
+            memory_data=memory_data
+        )
+        add_memory(scene)
+    except Exception as e:
+        print(f"Error in memory extraction/storage: {e}")
 
-    if updated_emotions:
-        for key, ems in updated_emotions.items():
-            parts = key.split("->")
-            if len(parts) == 2:
-                c1, c2 = parts[0].strip(), parts[1].strip()
-                curr = get_relationship_state(c1, c2)
-                deltas = {}
-                for k, v in ems.items():
-                    if k in curr:
-                        deltas[k] = v - curr[k]
-                update_relationship_state(c1, c2, deltas)
+    # --- Relationship updates (non-blocking) ---
+    try:
+        if updated_emotions and isinstance(updated_emotions, dict):
+            for key, ems in updated_emotions.items():
+                parts = key.split("->")
+                if len(parts) == 2:
+                    c1, c2 = parts[0].strip(), parts[1].strip()
+                    curr = get_relationship_state(c1, c2)
+                    deltas = {}
+                    for k, v in ems.items():
+                        if k in curr:
+                            deltas[k] = v - curr[k]
+                    update_relationship_state(c1, c2, deltas)
+    except Exception as e:
+        print(f"Error updating relationships: {e}")
 
-    direction_data = generate_direction(generated_scene)
+    # --- Director engine (non-blocking) ---
+    direction_data = None
+    try:
+        direction_data = generate_direction(generated_scene)
+    except Exception as e:
+        print(f"Error generating direction: {e}")
+
+    # --- Image generation (non-blocking) ---
+    image_filename = None
+    try:
+        if direction_data and characters:
+            visual_prompt = build_visual_prompt(
+                generated_scene,
+                direction_data,
+                characters
+            )
+            image_filename = generate_scene_image(visual_prompt)
+    except Exception as e:
+        print(f"Error generating image: {e}")
 
     return {
         "scene": generated_scene,
         "updated_emotions": updated_emotions,
-        "direction": direction_data
+        "direction": direction_data,
+        "image": image_filename
     }

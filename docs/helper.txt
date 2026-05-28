@@ -25,11 +25,7 @@ pip install fastapi uvicorn groq chromadb pymongo python-dotenv
 
 
 uvicorn main:app --reload
-
-
-
-
-
+`<HF_TOKEN_PLACEHOLDER>`
 
 {
   "character": {
