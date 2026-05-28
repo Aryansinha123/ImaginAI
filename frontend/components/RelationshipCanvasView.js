@@ -42,6 +42,13 @@ export default function RelationshipCanvasView() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingEdgeId, setEditingEdgeId] = useState(null);
   const [edgeLabelInput, setEdgeLabelInput] = useState("");
+  const [edgeEmotions, setEdgeEmotions] = useState({
+    trust: 50,
+    attachment: 50,
+    awkwardness: 0,
+    resentment: 0,
+    comfort: 50
+  });
 
   const nodeTypes = useMemo(() => ({ characterNode: CharacterNode }), []);
 
@@ -83,6 +90,13 @@ export default function RelationshipCanvasView() {
     event.preventDefault();
     setEditingEdgeId(edge.id);
     setEdgeLabelInput(edge.label || "");
+    setEdgeEmotions(edge.emotions || {
+      trust: 50,
+      attachment: 50,
+      awkwardness: 0,
+      resentment: 0,
+      comfort: 50
+    });
   };
 
   const handleLabelSave = (e) => {
@@ -90,7 +104,7 @@ export default function RelationshipCanvasView() {
     setEdges((eds) =>
       eds.map((edge) => {
         if (edge.id === editingEdgeId) {
-          return { ...edge, label: edgeLabelInput };
+          return { ...edge, label: edgeLabelInput, emotions: edgeEmotions };
         }
         return edge;
       })
@@ -139,20 +153,43 @@ export default function RelationshipCanvasView() {
         </Panel>
       </ReactFlow>
 
-      {/* Edge Label Editor Modal */}
       {editingEdgeId && (
         <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl w-80">
-            <h3 className="text-white font-bold mb-4">Edit Relationship Label</h3>
+          <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl shadow-2xl w-96">
+            <h3 className="text-white font-bold mb-4">Edit Relationship</h3>
             <form onSubmit={handleLabelSave}>
-              <input
-                type="text"
-                autoFocus
-                value={edgeLabelInput}
-                onChange={(e) => setEdgeLabelInput(e.target.value)}
-                placeholder="e.g. Rivals, Siblings..."
-                className="w-full bg-zinc-950 text-white border border-zinc-800 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 mb-4"
-              />
+              <div className="mb-4">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">Relationship Label</label>
+                <input
+                  type="text"
+                  autoFocus
+                  value={edgeLabelInput}
+                  onChange={(e) => setEdgeLabelInput(e.target.value)}
+                  placeholder="e.g. Rivals, Siblings..."
+                  className="w-full bg-zinc-950 text-white border border-zinc-800 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <h4 className="text-[10px] uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">Emotional Dynamics</h4>
+                {Object.keys(edgeEmotions).map((emotion) => (
+                  <div key={emotion}>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs capitalize text-zinc-300 font-semibold">{emotion}</label>
+                      <span className="text-xs font-mono text-zinc-500">{edgeEmotions[emotion]}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={edgeEmotions[emotion]}
+                      onChange={(e) => setEdgeEmotions({ ...edgeEmotions, [emotion]: parseInt(e.target.value) })}
+                      className="w-full accent-purple-500 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -165,7 +202,7 @@ export default function RelationshipCanvasView() {
                   type="submit"
                   className="px-4 py-2 bg-white text-black hover:bg-zinc-200 rounded-lg transition-colors cursor-pointer text-sm font-semibold"
                 >
-                  Save Label
+                  Save Dynamics
                 </button>
               </div>
             </form>

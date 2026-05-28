@@ -100,16 +100,72 @@ export async function POST(req, { params }) {
       ? pastScenes.map(s => `Scene Title: ${s.title || "Untitled"}\nScene Prompt: ${s.prompt}\nEnhanced Story: ${s.generated_text}`).join("\n\n")
       : "No previous events recorded.";
 
+    let relevantEdge = null;
+    let edgeEmotions = null;
+    if (assignedCharacters.length === 2 && project.canvas_edges) {
+      const c1 = assignedCharacters[0]._id.toString();
+      const c2 = assignedCharacters[1]._id.toString();
+      console.log("Checking edge for", c1, "and", c2);
+      relevantEdge = project.canvas_edges.find(e => 
+        (e.source === c1 && e.target === c2) || (e.source === c2 && e.target === c1)
+      );
+      console.log("Found relevantEdge:", relevantEdge);
+      if (relevantEdge && relevantEdge.emotions) {
+        edgeEmotions = relevantEdge.emotions;
+      }
+    }
+
     let generatedText = generated_text;
+    let emotionDeltas = null;
+
     if (!generatedText) {
       // Call stateless FastAPI completions backend
       const apiRes = await axios.post("http://127.0.0.1:8000/generate-scene", {
         scene,
         characters: assignedCharacters,
         tone: tone || "neutral",
-        past_memories
+        past_memories,
+        edge_emotions: edgeEmotions
       });
       generatedText = apiRes.data.scene;
+      
+      console.log("Python response:", apiRes.data);
+
+      if (apiRes.data.updated_emotions && relevantEdge) {
+        // Fallback if edgeEmotions was null initially
+        const currentEmotions = edgeEmotions || {
+          trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50
+        };
+        
+        // Calculate deltas
+        emotionDeltas = {};
+        const newEmotions = apiRes.data.updated_emotions;
+        const normalizedNewEmotions = {};
+
+        Object.keys(newEmotions).forEach(key => {
+          const lowerKey = key.toLowerCase();
+          normalizedNewEmotions[lowerKey] = newEmotions[key];
+          if (currentEmotions[lowerKey] !== undefined) {
+            emotionDeltas[lowerKey] = {
+              previous: currentEmotions[lowerKey],
+              new: newEmotions[key],
+              delta: newEmotions[key] - currentEmotions[lowerKey]
+            };
+          }
+        });
+
+        // Update DB
+        const updatedEdges = project.canvas_edges.map(e => {
+          if (e.id === relevantEdge.id) {
+            return { ...e, emotions: { ...e.emotions, ...normalizedNewEmotions } };
+          }
+          return e;
+        });
+        await db.collection("projects").updateOne(
+          { _id: new ObjectId(projectId) },
+          { $set: { canvas_edges: updatedEdges } }
+        );
+      }
     }
     const sceneCount = await db.collection("scenes").countDocuments({ project_id: new ObjectId(projectId) });
 
@@ -122,7 +178,8 @@ export async function POST(req, { params }) {
       tone: tone || "neutral",
       characterIds: characterIds || (character ? [character.id || character._id] : []),
       order: sceneCount,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      emotion_deltas: emotionDeltas
     };
 
     const result = await db.collection("scenes").insertOne(newScene);
@@ -137,7 +194,8 @@ export async function POST(req, { params }) {
       tone: newScene.tone,
       characterIds: newScene.characterIds,
       order: newScene.order,
-      created_at: newScene.created_at
+      created_at: newScene.created_at,
+      emotion_deltas: emotionDeltas
     });
   } catch (error) {
     console.error("Create Scene Error:", error);

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
-import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen } from "lucide-react";
+import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown } from "lucide-react";
 
 export default function SceneStudioView({ activeScene, onSelectScene }) {
   const { activeProject, characters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
@@ -287,6 +287,53 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
               <div className="text-zinc-200 text-base leading-8 whitespace-pre-wrap font-serif bg-zinc-950/45 p-6 rounded-2xl shadow-inner border border-zinc-850 select-text selection:bg-purple-500/20">
                 {generatedText}
               </div>
+
+              {/* Dynamic Emotional Shifts */}
+              {activeScene && activeScene.emotion_deltas && Object.keys(activeScene.emotion_deltas).length > 0 && (
+                <div className="bg-zinc-950/45 border border-zinc-850 p-5 rounded-2xl">
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold mb-3 flex items-center gap-1.5">
+                    <Heart className="w-3.5 h-3.5 text-purple-400" />
+                    Updated Relationship Dynamics
+                  </h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {Object.entries(activeScene.emotion_deltas).map(([emotion, data]) => {
+                      // Check if it's the old format (just a number) or the new format (object)
+                      const isOldFormat = typeof data === 'number';
+                      const delta = isOldFormat ? data : data.delta;
+                      const previous = isOldFormat ? null : data.previous;
+                      const newVal = isOldFormat ? null : data.new;
+                      
+                      const isPositive = delta > 0;
+                      const isNegative = delta < 0;
+                      const noChange = delta === 0;
+
+                      return (
+                        <div key={emotion} className="flex items-center justify-between px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-xl">
+                          <span className="text-sm font-semibold text-zinc-300 capitalize flex items-center gap-2">
+                             {emotion}
+                          </span>
+                          <div className="flex items-center gap-3">
+                             {!isOldFormat && (
+                               <span className="text-xs text-zinc-500 font-mono">{previous}% &rarr; <span className="text-zinc-300 font-bold">{newVal}%</span></span>
+                             )}
+                             {!noChange && (
+                               <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                                 {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                                 {isPositive ? '+' : ''}{delta}%
+                               </div>
+                             )}
+                             {noChange && (
+                               <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-500">
+                                 No Change
+                               </div>
+                             )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Generated Widescreen Scene Frames Placeholder Gallery */}
               <div className="space-y-3.5 pt-4">
