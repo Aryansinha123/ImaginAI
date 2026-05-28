@@ -12,6 +12,7 @@ from data.relationships import (
 from vector_memory.memory_extractor import (
     extract_memory
 )
+from director_engine import generate_direction
 load_dotenv()
 
 app = FastAPI()
@@ -240,7 +241,10 @@ Example JSON:
                         deltas[k] = v - curr[k]
                 update_relationship_state(c1, c2, deltas)
 
+    direction_data = generate_direction(generated_scene)
+
     return {
         "scene": generated_scene,
-        "updated_emotions": updated_emotions
+        "updated_emotions": updated_emotions,
+        "direction": direction_data
     }

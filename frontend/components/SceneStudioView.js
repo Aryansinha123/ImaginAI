@@ -288,6 +288,42 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                 {generatedText}
               </div>
 
+              {/* Cinematic Director Notes */}
+              {activeScene && activeScene.direction && (
+                <div className="bg-zinc-950/45 border border-zinc-850 p-5 rounded-2xl space-y-3.5 shadow-md">
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-bold flex items-center gap-1.5 border-b border-zinc-850 pb-2.5">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                    Cinematic Director Notes
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Camera Framing</span>
+                      <span className="font-semibold text-zinc-300 capitalize">{activeScene.direction.camera || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Lighting Setup</span>
+                      <span className="font-semibold text-zinc-300 capitalize">{activeScene.direction.lighting || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Weather & Atmosphere</span>
+                      <span className="font-semibold text-zinc-300 capitalize">{activeScene.direction.weather || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Emotional Mood</span>
+                      <span className="font-semibold text-zinc-300 capitalize">{activeScene.direction.mood || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Color Palette</span>
+                      <span className="font-semibold text-zinc-300 capitalize">{activeScene.direction.color_palette || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Scene Intensity</span>
+                      <span className="font-bold text-purple-400 font-mono">{activeScene.direction.scene_intensity ?? 50}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Dynamic Emotional Shifts */}
               {activeScene && activeScene.emotion_deltas && Object.keys(activeScene.emotion_deltas).length > 0 && (
                 <div className="bg-zinc-950/45 border border-zinc-850 p-5 rounded-2xl space-y-4">

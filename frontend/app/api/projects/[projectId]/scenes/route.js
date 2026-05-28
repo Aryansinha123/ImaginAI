@@ -136,6 +136,7 @@ export async function POST(req, { params }) {
 
     let generatedText = generated_text;
     let emotionDeltas = {};
+    let directionData = null;
 
     if (!generatedText) {
       // Call stateless FastAPI completions backend
@@ -147,6 +148,7 @@ export async function POST(req, { params }) {
         relationships: relationships
       });
       generatedText = apiRes.data.scene;
+      directionData = apiRes.data.direction;
       
       console.log("Python response:", apiRes.data);
 
@@ -249,7 +251,8 @@ export async function POST(req, { params }) {
       characterIds: characterIds || (character ? [character.id || character._id] : []),
       order: sceneCount,
       created_at: new Date().toISOString(),
-      emotion_deltas: emotionDeltas
+      emotion_deltas: emotionDeltas,
+      direction: directionData
     };
 
     const result = await db.collection("scenes").insertOne(newScene);
@@ -265,7 +268,8 @@ export async function POST(req, { params }) {
       characterIds: newScene.characterIds,
       order: newScene.order,
       created_at: newScene.created_at,
-      emotion_deltas: emotionDeltas
+      emotion_deltas: emotionDeltas,
+      direction: directionData
     });
   } catch (error) {
     console.error("Create Scene Error:", error);
