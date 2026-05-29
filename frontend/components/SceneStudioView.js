@@ -315,7 +315,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-white truncate">{char.name}</p>
-                        <p className="text-[9px] text-zinc-500 truncate">{char.relationship || "Global character"}</p>
+                        <p className="text-[9px] text-zinc-500 truncate">{typeof char.relationship === 'object' ? (char.relationship.emotion || char.relationship_type || "Global character") : (char.relationship_type || char.relationship || "Global character")}</p>
                       </div>
                     </div>
                   );

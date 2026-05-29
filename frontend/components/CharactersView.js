@@ -146,7 +146,7 @@ export default function CharactersView() {
     setAttachmentStyle(char.attachment_style || "");
     setCommunicationStyle(char.communication_style || char.speakingStyle || "");
     setVoiceStyle(char.voice_style || char.voice || "");
-    setRelationshipType(char.relationship_type || char.relationship || "");
+    setRelationshipType(char.relationship_type || (typeof char.relationship === 'string' ? char.relationship : (char.relationship?.emotion || "")));
     setAvatarUrl(char.avatarUrl || "");
     setShowAddForm(true);
   };
@@ -269,7 +269,7 @@ export default function CharactersView() {
                   <div className="flex items-center justify-center gap-1.5 flex-wrap">
                     {(char.relationship_type || char.relationship) && (
                       <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/20">
-                        {char.relationship_type || char.relationship}
+                        {typeof char.relationship === 'object' ? (char.relationship.emotion || char.relationship_type || "Friend") : (char.relationship_type || char.relationship)}
                       </span>
                     )}
                     {char.age && (
