@@ -340,7 +340,11 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-white truncate">{char.name}</p>
-                        <p className="text-[9px] text-zinc-500 truncate">{safeStr(char.relationship_type, null) || safeStr(char.relationship, null) || "Global character"}</p>
+                        <p className="text-[9px] text-zinc-500 truncate">
+                          {char.core_traits && char.core_traits.length > 0
+                            ? char.core_traits.slice(0, 2).join(", ")
+                            : [char.gender, char.age ? `${char.age} yrs` : null].filter(Boolean).join(" • ") || "Character"}
+                        </p>
                       </div>
                     </div>
                   );
