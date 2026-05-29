@@ -4,8 +4,33 @@ import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 
+// Helper: safely convert any value to a renderable string (prevents React "Objects are not valid as a React child" crashes)
+const safeStr = (val, fallback = "") => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "string" || typeof val === "number" || typeof val === "boolean") return val;
+  if (typeof val === "object") {
+    // Handle known legacy shapes like {emotion, level, influence}
+    if (val.emotion) return val.emotion;
+    if (val.relationship_type) return val.relationship_type;
+    if (val.name) return val.name;
+    return JSON.stringify(val);
+  }
+  return String(val);
+};
+
 export default function SceneStudioView({ activeScene, onSelectScene }) {
-  const { activeProject, characters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
+  const { activeProject, characters: rawCharacters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
+
+  // Sanitize characters to ensure no nested objects leak into JSX renders
+  const characters = (rawCharacters || []).map(c => ({
+    ...c,
+    relationship_type: typeof c.relationship_type === 'object' && c.relationship_type !== null
+      ? (c.relationship_type.emotion || c.relationship_type.relationship_type || "")
+      : (c.relationship_type || ""),
+    relationship: typeof c.relationship === 'object' && c.relationship !== null
+      ? (c.relationship.emotion || c.relationship.relationship_type || "")
+      : (c.relationship || ""),
+  }));
 
   // Local Editor State
   const [title, setTitle] = useState("");
@@ -315,13 +340,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-white truncate">{char.name}</p>
-                        <p className="text-[9px] text-zinc-500 truncate">
-                          {typeof char.relationship_type === 'object' && char.relationship_type !== null
-                            ? (char.relationship_type.emotion || char.relationship_type.relationship_type || "Global character")
-                            : (typeof char.relationship === 'object' && char.relationship !== null
-                              ? (char.relationship.emotion || "Global character")
-                              : (char.relationship_type || char.relationship || "Global character"))}
-                        </p>
+                        <p className="text-[9px] text-zinc-500 truncate">{safeStr(char.relationship_type, null) || safeStr(char.relationship, null) || "Global character"}</p>
                       </div>
                     </div>
                   );
@@ -573,19 +592,19 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                           <div className="bg-zinc-950/45 p-3 rounded-xl border border-zinc-900 shadow-inner">
                             <span className="text-[9px] font-mono uppercase tracking-wider text-purple-400/70 block mb-1">Hidden Thoughts (Subtext)</span>
                             <span className="italic text-zinc-300 font-serif leading-relaxed">
-                              "{thoughts.hidden_thoughts}"
+                              "{safeStr(thoughts.hidden_thoughts)}"
                             </span>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-2 pt-1">
                             <div className="bg-zinc-900/10 border border-zinc-850/40 p-2 rounded-lg">
                               <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Motivation</span>
-                              <span className="text-zinc-400 font-medium leading-tight block">{thoughts.motivation}</span>
+                              <span className="text-zinc-400 font-medium leading-tight block">{safeStr(thoughts.motivation)}</span>
                             </div>
                             {thoughts.secret_feeling && (
                               <div className="bg-zinc-900/10 border border-zinc-850/40 p-2 rounded-lg">
                                 <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Secret Feeling</span>
-                                <span className="text-zinc-400 font-medium leading-tight block">{thoughts.secret_feeling}</span>
+                                <span className="text-zinc-400 font-medium leading-tight block">{safeStr(thoughts.secret_feeling)}</span>
                               </div>
                             )}
                           </div>

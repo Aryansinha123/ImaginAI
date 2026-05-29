@@ -101,6 +101,7 @@ export async function GET(req, { params }) {
       images: s.images || (s.image ? [s.image] : []),
       image: s.image,
       direction: s.direction,
+      emotion_deltas: s.emotion_deltas || {},
       hidden_thoughts: s.hidden_thoughts || {},
       parent_id: s.parent_id || null,
       branch_id: s.branch_id || "main",

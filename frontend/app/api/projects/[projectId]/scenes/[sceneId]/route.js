@@ -64,6 +64,7 @@ export async function PATCH(req, { params }) {
       generated_text: result.generated_text,
       created_at: result.created_at,
       direction: result.direction || null,
+      emotion_deltas: result.emotion_deltas || {},
       images: result.images || (result.image ? [result.image] : []),
       image: result.image || null,
       hidden_thoughts: result.hidden_thoughts || {},
