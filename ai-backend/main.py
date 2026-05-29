@@ -383,3 +383,18 @@ Example JSON:
         "images": image_filenames,
         "hidden_thoughts": hidden_thoughts_dict
     }
+
+@app.delete("/generated_images/{filename}")
+def delete_image(filename: str):
+    file_path = os.path.join("generated_images", filename)
+    # Basic security check to prevent path traversal
+    if ".." in filename or filename.startswith("/") or filename.startswith("\\"):
+        return {"status": "error", "message": "Invalid filename"}
+    
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            return {"status": "success", "message": f"Deleted {filename}"}
+        except Exception as e:
+            return {"status": "error", "message": f"Failed to delete file: {str(e)}"}
+    return {"status": "error", "message": "File not found"}

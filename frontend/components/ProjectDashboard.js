@@ -8,6 +8,7 @@ import MemoriesView from "./MemoriesView";
 import SceneStudioView from "./SceneStudioView";
 import SettingsView from "./SettingsView";
 import RelationshipCanvasView from "./RelationshipCanvasView";
+import GalleryView from "./GalleryView";
 import { Sparkles, Film, Loader2 } from "lucide-react";
 
 export default function ProjectDashboard() {
@@ -55,6 +56,8 @@ export default function ProjectDashboard() {
             onSelectScene={setActiveScene}
           />
         );
+      case "Gallery":
+        return <GalleryView />;
       case "Settings":
         return <SettingsView />;
       case "Dashboard":

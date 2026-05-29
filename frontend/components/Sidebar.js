@@ -17,7 +17,8 @@ import {
   Settings,
   ChevronDown,
   ChevronUp,
-  Network
+  Network,
+  Image
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -56,6 +57,7 @@ export default function Sidebar() {
     { name: "Timeline", icon: Film },
     { name: "Memories", icon: History },
     { name: "Scene Studio", icon: Sparkles },
+    { name: "Gallery", icon: Image },
     { name: "Settings", icon: Settings }
   ];
 
