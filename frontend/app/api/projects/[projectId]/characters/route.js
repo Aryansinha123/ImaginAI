@@ -56,7 +56,9 @@ export async function GET(req, { params }) {
       attachment_style: c.attachment_style || "",
       communication_style: c.communication_style || c.speakingStyle || "",
       voice_style: c.voice_style || c.voice || "",
-      relationship_type: c.relationship_type || c.relationship || "",
+      relationship_type: typeof c.relationship_type === 'object' && c.relationship_type !== null
+        ? (c.relationship_type.emotion || c.relationship_type.relationship_type || "")
+        : (c.relationship_type || (typeof c.relationship === 'object' && c.relationship !== null ? (c.relationship.emotion || c.relationship.relationship_type || "") : (c.relationship || ""))),
       avatarUrl: c.avatarUrl || "",
       created_at: c.created_at
     }));

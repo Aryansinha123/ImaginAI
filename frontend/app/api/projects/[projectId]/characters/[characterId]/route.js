@@ -73,7 +73,9 @@ export async function PATCH(req, { params }) {
       attachment_style: result.attachment_style || "",
       communication_style: result.communication_style || "",
       voice_style: result.voice_style || "",
-      relationship_type: result.relationship_type || "",
+      relationship_type: typeof result.relationship_type === 'object' && result.relationship_type !== null
+        ? (result.relationship_type.emotion || result.relationship_type.relationship_type || "")
+        : (result.relationship_type || ""),
       avatarUrl: result.avatarUrl || "",
       created_at: result.created_at
     });

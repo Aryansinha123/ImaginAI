@@ -269,7 +269,11 @@ export default function CharactersView() {
                   <div className="flex items-center justify-center gap-1.5 flex-wrap">
                     {(char.relationship_type || char.relationship) && (
                       <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/20">
-                        {typeof char.relationship === 'object' ? (char.relationship.emotion || char.relationship_type || "Friend") : (char.relationship_type || char.relationship)}
+                        {typeof char.relationship_type === 'object' && char.relationship_type !== null
+                          ? (char.relationship_type.emotion || char.relationship_type.relationship_type || "Friend")
+                          : (typeof char.relationship === 'object' && char.relationship !== null
+                            ? (char.relationship.emotion || "Friend")
+                            : (char.relationship_type || char.relationship || "Friend"))}
                       </span>
                     )}
                     {char.age && (
