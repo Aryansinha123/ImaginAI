@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
+import { useToast } from "./ToastProvider";
 import { 
   Download, 
   Trash2, 
@@ -9,26 +10,17 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Image as ImageIcon, 
-  AlertCircle, 
   Loader2 
 } from "lucide-react";
 import axios from "axios";
 
 export default function GalleryView() {
   const { activeProject, scenes, updateScene } = useStore();
+  const { toast, confirmAction } = useToast();
   
   // State for image zoom modal
   const [activeImage, setActiveImage] = useState(null); // { sceneId, filename, index, images }
   const [isDeleting, setIsDeleting] = useState(null); // filename being deleted
-  const [message, setMessage] = useState(null); // { text, type: "success" | "error" }
-
-  // Clear messages automatically
-  useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => setMessage(null), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
 
   // Handle keyboard navigation for zoomed modal
   useEffect(() => {
@@ -79,10 +71,18 @@ export default function GalleryView() {
       link.click();
       document.body.removeChild(link);
       
-      setMessage({ text: "Download initiated successfully!", type: "success" });
+      toast({
+        type: "success",
+        title: "Download started",
+        message: "Your generated image is on the way.",
+      });
     } catch (error) {
       console.error("Download failed:", error);
-      setMessage({ text: "Failed to download image.", type: "error" });
+      toast({
+        type: "error",
+        title: "Download failed",
+        message: "Could not start the image download.",
+      });
     }
   };
 
@@ -90,7 +90,12 @@ export default function GalleryView() {
   const handleDelete = async (scene, filename) => {
     if (isDeleting) return;
     
-    const confirmDelete = window.confirm("Are you sure you want to permanently delete this generated image?");
+    const confirmDelete = await confirmAction({
+      title: "Delete generated image?",
+      message: "This removes the image from the gallery and updates the scene record.",
+      confirmText: "Delete Image",
+      variant: "danger",
+    });
     if (!confirmDelete) return;
 
     setIsDeleting(filename);
@@ -119,7 +124,11 @@ export default function GalleryView() {
         image: updatedImage
       });
 
-      setMessage({ text: "Image deleted successfully.", type: "success" });
+      toast({
+        type: "success",
+        title: "Image deleted",
+        message: "The gallery and scene data are now updated.",
+      });
       
       // Close zoom modal if the deleted image was active in the modal
       if (activeImage?.filename === filename) {
@@ -127,7 +136,11 @@ export default function GalleryView() {
       }
     } catch (err) {
       console.error("Delete failed:", err);
-      setMessage({ text: "Failed to update scene data.", type: "error" });
+      toast({
+        type: "error",
+        title: "Delete failed",
+        message: "The scene data could not be updated.",
+      });
     } finally {
       setIsDeleting(null);
     }
@@ -153,18 +166,6 @@ export default function GalleryView() {
           </p>
         </div>
       </div>
-
-      {/* Floating Status Notification */}
-      {message && (
-        <div className={`fixed bottom-6 right-6 px-4 py-3 rounded-2xl border text-xs font-semibold shadow-2xl z-40 transition-all duration-300 animate-slide-in flex items-center gap-2.5 ${
-          message.type === "success" 
-            ? "bg-zinc-900/90 border-emerald-500/20 text-emerald-400 backdrop-blur-md" 
-            : "bg-zinc-900/90 border-red-500/20 text-red-400 backdrop-blur-md"
-        }`}>
-          {message.type === "error" && <AlertCircle className="w-4 h-4" />}
-          <span>{message.text}</span>
-        </div>
-      )}
 
       {/* Main Gallery List */}
       <div className="relative z-10 space-y-10">

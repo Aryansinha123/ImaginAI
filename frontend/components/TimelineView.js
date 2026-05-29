@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useStore } from "../store/useStore";
+import { useToast } from "./ToastProvider";
 import {
   ReactFlow,
   MiniMap,
@@ -10,9 +11,11 @@ import {
   Handle,
   Position,
   Panel,
+  useNodesState,
+  useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Film, Trash2, Copy, Edit3, ArrowUp, ArrowDown, Users, Network, List } from "lucide-react";
+import { Film, Trash2, Copy, Edit3, ArrowUp, ArrowDown, Users, Network, List, GripVertical } from "lucide-react";
 
 // Custom Scene Node Component for ReactFlow Canvas
 const SceneNode = ({ data }) => {
@@ -82,6 +85,8 @@ const SceneNode = ({ data }) => {
   );
 };
 
+const TIMELINE_NODE_TYPES = { sceneNode: SceneNode };
+
 // Top-Down Dynamic Tree Layout Algorithm
 function layoutTree(scenes) {
   const adj = {};
@@ -119,27 +124,85 @@ function layoutTree(scenes) {
   return positions;
 }
 
+function rebuildSceneOrderFromNodes(scenes, nodes) {
+  const nodePos = new Map(nodes.map((n) => [n.id, n.position?.x ?? 0]));
+
+  const getChildren = (parentId) =>
+    scenes
+      .filter((s) => (s.parent_id || null) === parentId)
+      .sort((a, b) => (nodePos.get(a.id) ?? 0) - (nodePos.get(b.id) ?? 0));
+
+  const walk = (parentId) => {
+    const ids = [];
+    for (const child of getChildren(parentId)) {
+      ids.push(child.id);
+      ids.push(...walk(child.id));
+    }
+    return ids;
+  };
+
+  const ordered = walk(null);
+  scenes.forEach((s) => {
+    if (!ordered.includes(s.id)) ordered.push(s.id);
+  });
+  return ordered;
+}
+
 export default function TimelineView({ onViewChange, onSelectScene }) {
   const { activeProject, scenes, characters, deleteScene, duplicateScene, reorderScenes } = useStore();
+  const { toast, confirmAction } = useToast();
   const [viewMode, setViewMode] = useState("canvas"); // "canvas" or "list"
   const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  const nodeTypes = useMemo(() => ({ sceneNode: SceneNode }), []);
+  const onSelectSceneRef = useRef(onSelectScene);
+  const onViewChangeRef = useRef(onViewChange);
+  const sortedScenesRef = useRef([]);
+
+  onSelectSceneRef.current = onSelectScene;
+  onViewChangeRef.current = onViewChange;
+
+  const sortedScenes = useMemo(
+    () =>
+      [...scenes].sort((a, b) => {
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      }),
+    [scenes]
+  );
+
+  sortedScenesRef.current = sortedScenes;
+
+  const layoutSignature = useMemo(
+    () =>
+      sortedScenes
+        .map((s) => `${s.id}:${s.parent_id || ""}:${s.order ?? 0}`)
+        .join("|"),
+    [sortedScenes]
+  );
+
+  const charactersSignature = useMemo(
+    () => characters.map((c) => `${c.id}:${c.name}`).join("|"),
+    [characters]
+  );
 
   // Sync ReactFlow Canvas nodes and edges
   useEffect(() => {
-    if (scenes.length === 0) {
+    const scenesToLayout = sortedScenesRef.current;
+
+    if (scenesToLayout.length === 0) {
       setNodes([]);
       setEdges([]);
       return;
     }
 
-    const positions = layoutTree(scenes);
+    const positions = layoutTree(scenesToLayout);
 
-    const newNodes = scenes.map((s) => {
+    const newNodes = scenesToLayout.map((s) => {
       const pos = positions[s.id] || { x: 50, y: 50 };
       const assignedChars = characters.filter((c) => (s.characterIds || []).includes(c.id));
       
@@ -155,23 +218,23 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
           branch_id: s.branch_id,
           characters: assignedChars,
           onEdit: (id) => {
-            const sc = scenes.find((scene) => scene.id === id);
-            onSelectScene(sc);
-            onViewChange("Scene Studio");
+            const sc = sortedScenesRef.current.find((scene) => scene.id === id);
+            onSelectSceneRef.current(sc);
+            onViewChangeRef.current("Scene Studio");
           },
           onBranch: (id) => {
             if (typeof window !== "undefined") {
               localStorage.setItem("imaginai_draft_parent", id);
               localStorage.setItem("imaginai_draft_branch", "branch_a");
             }
-            onSelectScene(null);
-            onViewChange("Scene Studio");
+            onSelectSceneRef.current(null);
+            onViewChangeRef.current("Scene Studio");
           }
         }
       };
     });
 
-    const newEdges = scenes
+    const newEdges = scenesToLayout
       .filter((s) => s.parent_id)
       .map((s) => ({
         id: `edge-${s.parent_id}-${s.id}`,
@@ -183,14 +246,26 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
 
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [scenes, characters, onSelectScene, onViewChange]);
+  }, [layoutSignature, charactersSignature]);
+
+  const handleNodeDragStop = useCallback(
+    async (_event, draggedNode) => {
+      if (!activeProject) return;
+      const currentNodes = nodes.map((n) =>
+        n.id === draggedNode.id ? { ...n, position: draggedNode.position } : n
+      );
+      const orderedIds = rebuildSceneOrderFromNodes(sortedScenes, currentNodes);
+      await reorderScenes(activeProject.id, orderedIds);
+    },
+    [activeProject, nodes, sortedScenes, reorderScenes]
+  );
 
   // Linear view reordering handlers
   const moveScene = async (currentIndex, direction) => {
     const targetIndex = currentIndex + direction;
-    if (targetIndex < 0 || targetIndex >= scenes.length) return;
+    if (targetIndex < 0 || targetIndex >= sortedScenes.length) return;
 
-    const newScenes = [...scenes];
+    const newScenes = [...sortedScenes];
     const temp = newScenes[currentIndex];
     newScenes[currentIndex] = newScenes[targetIndex];
     newScenes[targetIndex] = temp;
@@ -202,21 +277,36 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
   const handleDragStart = (e, index) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
   };
 
   const handleDragOver = (e, index) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverIndex !== index) setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleDrop = async (e, targetIndex) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === targetIndex) return;
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      handleDragEnd();
+      return;
+    }
 
-    const newScenes = [...scenes];
+    const newScenes = [...sortedScenes];
     const [draggedItem] = newScenes.splice(draggedIndex, 1);
     newScenes.splice(targetIndex, 0, draggedItem);
 
-    setDraggedIndex(null);
+    handleDragEnd();
     const orderedIds = newScenes.map((s) => s.id);
     await reorderScenes(activeProject.id, orderedIds);
   };
@@ -282,7 +372,7 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
         </div>
       </div>
 
-      {scenes.length === 0 ? (
+      {sortedScenes.length === 0 ? (
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="py-20 text-center border-2 border-dashed border-zinc-850 rounded-3xl max-w-xl mx-auto px-10">
             <Film className="w-12 h-12 text-zinc-700 mx-auto mb-4" />
@@ -298,7 +388,12 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeDragStop={handleNodeDragStop}
+            nodeTypes={TIMELINE_NODE_TYPES}
+            nodesDraggable
+            nodesConnectable={false}
             fitView
             className="bg-zinc-950"
           >
@@ -309,6 +404,11 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
               maskColor="rgba(0, 0, 0, 0.7)"
               className="bg-zinc-900 border-zinc-800"
             />
+            <Panel position="top-center" className="!m-4">
+              <p className="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-lg backdrop-blur-sm">
+                Drag scene cards horizontally to reorder branches · Order saves automatically
+              </p>
+            </Panel>
           </ReactFlow>
         </div>
       ) : (
@@ -318,7 +418,7 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
             💡 Tip: Drag and drop cards to reorder scenes, or use the ↑ and ↓ buttons.
           </p>
           <div className="space-y-5 max-w-4xl">
-            {scenes.map((scene, index) => {
+            {sortedScenes.map((scene, index) => {
               const assignedChars = characters.filter((c) =>
                 (scene.characterIds || []).includes(c.id)
               );
@@ -326,13 +426,25 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
               return (
                 <div
                   key={scene.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
                   onDragOver={(e) => handleDragOver(e, index)}
+                  onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, index)}
-                  className="group flex flex-col md:flex-row items-stretch bg-zinc-950/45 border border-zinc-850 hover:border-zinc-750 transition-all duration-300 rounded-3xl overflow-hidden cursor-grab active:cursor-grabbing shadow-lg"
+                  className={`group flex flex-col md:flex-row items-stretch bg-zinc-950/45 border transition-all duration-300 rounded-3xl overflow-hidden shadow-lg ${
+                    dragOverIndex === index
+                      ? "border-purple-500 ring-1 ring-purple-500/30"
+                      : "border-zinc-850 hover:border-zinc-750"
+                  } ${draggedIndex === index ? "opacity-40 scale-[0.99]" : ""}`}
                 >
-                  <div className="w-full md:w-48 bg-zinc-900 border-r border-zinc-850 flex flex-col items-center justify-center p-6 relative shrink-0">
+                  <div
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className="w-full md:w-12 bg-zinc-900 border-r border-zinc-850 flex items-center justify-center cursor-grab active:cursor-grabbing shrink-0 text-zinc-500 hover:text-purple-400 hover:bg-zinc-850/50 transition-colors"
+                    title="Drag to reorder"
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                  <div className="w-full md:w-36 bg-zinc-900 border-r border-zinc-850 flex flex-col items-center justify-center p-6 relative shrink-0">
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-pink-500/5" />
                     <span className="text-[10px] font-mono tracking-widest text-purple-400 uppercase font-semibold">
                       {scene.branch_id === "main" ? "Main Branch" : `Reality: ${scene.branch_id}`}
@@ -390,7 +502,7 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
                         </button>
                         <button
                           onClick={() => moveScene(index, 1)}
-                          disabled={index === scenes.length - 1}
+                          disabled={index === sortedScenes.length - 1}
                           className="p-1.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white border border-zinc-850 rounded-xl transition-all cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
                           title="Move Down"
                         >
@@ -419,9 +531,21 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
                         </button>
 
                         <button
-                          onClick={() => {
-                            if (confirm("Are you sure you want to delete this scene?")) {
-                              deleteScene(activeProject.id, scene.id);
+                          onClick={async () => {
+                            const confirmed = await confirmAction({
+                              title: "Delete this scene?",
+                              message: `"${scene.title}" will be removed from the timeline.`,
+                              confirmText: "Delete Scene",
+                              variant: "danger",
+                            });
+
+                            if (confirmed) {
+                              await deleteScene(activeProject.id, scene.id);
+                              toast({
+                                type: "success",
+                                title: "Scene deleted",
+                                message: "The timeline has been updated.",
+                              });
                             }
                           }}
                           className="p-1.5 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-red-400 border border-zinc-850 rounded-xl transition-all cursor-pointer"

@@ -2,6 +2,7 @@ from groq import Groq
 import os
 from dotenv import load_dotenv
 import json
+from groq_utils import groq_chat_completion
 
 load_dotenv()
 
@@ -47,15 +48,12 @@ def extract_memory(scene_text):
     {scene_text}
     """
 
-    completion = client.chat.completions.create(
+    completion = groq_chat_completion(
+        client,
         model="llama-3.1-8b-instant",
-        messages=[
-            {
-                "role": "user",
-                "content": extraction_prompt
-            }
-        ],
-        response_format={"type": "json_object"}
+        messages=[{"role": "user", "content": extraction_prompt}],
+        response_format={"type": "json_object"},
+        max_tokens=400,
     )
 
     response_text = completion.choices[0].message.content.strip()

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ReactFlow,
   MiniMap,
@@ -16,6 +16,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import { useStore } from "../store/useStore";
 import { Save, UserCircle } from "lucide-react";
+import { getAccumulatedEmotionsFromScenes } from "../lib/emotionUtils";
 
 const CharacterNode = ({ data }) => {
   return (
@@ -34,31 +35,7 @@ const CharacterNode = ({ data }) => {
   );
 };
 
-const getAccumulatedEmotionsClient = (activeSceneId, scenes) => {
-  const emotions = {};
-  const resolvedKeys = new Set();
-  let currentId = activeSceneId;
-
-  while (currentId) {
-    const sceneObj = scenes.find((s) => s.id === currentId);
-    if (!sceneObj) break;
-
-    if (sceneObj.emotion_deltas) {
-      for (const [key, deltas] of Object.entries(sceneObj.emotion_deltas)) {
-        if (!resolvedKeys.has(key)) {
-          const values = {};
-          for (const [emName, emVal] of Object.entries(deltas)) {
-            values[emName] = typeof emVal === 'number' ? emVal : (emVal.new !== undefined ? emVal.new : emVal);
-          }
-          emotions[key] = values;
-          resolvedKeys.add(key);
-        }
-      }
-    }
-    currentId = sceneObj.parent_id;
-  }
-  return emotions;
-};
+const RELATIONSHIP_NODE_TYPES = { characterNode: CharacterNode };
 
 export default function RelationshipCanvasView() {
   const { activeProject, characters, canvasNodes, canvasEdges, saveCanvasState, activeScene, scenes } = useStore();
@@ -73,8 +50,6 @@ export default function RelationshipCanvasView() {
     source_to_target: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 },
     target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
   });
-
-  const nodeTypes = useMemo(() => ({ characterNode: CharacterNode }), []);
 
   useEffect(() => {
     // Sync store characters to canvas nodes
@@ -108,7 +83,7 @@ export default function RelationshipCanvasView() {
         const sourceChar = characters.find((c) => c.id === edge.source);
         const targetChar = characters.find((c) => c.id === edge.target);
         if (sourceChar && targetChar) {
-          const accumulated = getAccumulatedEmotionsClient(activeScene.id, scenes);
+          const accumulated = getAccumulatedEmotionsFromScenes(activeScene.id, scenes);
           const keyST = `${sourceChar.name}->${targetChar.name}`;
           const keyTS = `${targetChar.name}->${sourceChar.name}`;
 
@@ -117,11 +92,23 @@ export default function RelationshipCanvasView() {
             target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
           };
 
-          if (accumulated[keyST]) {
-            emotions.source_to_target = { ...emotions.source_to_target, ...accumulated[keyST] };
+          const findAccumulated = (pairKey) => {
+            const exact = accumulated[pairKey];
+            if (exact) return exact;
+            const norm = pairKey.replace(/\s+/g, "").toLowerCase();
+            const matchKey = Object.keys(accumulated).find(
+              (k) => k.replace(/\s+/g, "").toLowerCase() === norm
+            );
+            return matchKey ? accumulated[matchKey] : null;
+          };
+
+          const st = findAccumulated(keyST);
+          const ts = findAccumulated(keyTS);
+          if (st) {
+            emotions.source_to_target = { ...emotions.source_to_target, ...st };
           }
-          if (accumulated[keyTS]) {
-            emotions.target_to_source = { ...emotions.target_to_source, ...accumulated[keyTS] };
+          if (ts) {
+            emotions.target_to_source = { ...emotions.target_to_source, ...ts };
           }
 
           return { ...edge, emotions };
@@ -197,7 +184,7 @@ export default function RelationshipCanvasView() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onEdgeDoubleClick={onEdgeDoubleClick}
-        nodeTypes={nodeTypes}
+        nodeTypes={RELATIONSHIP_NODE_TYPES}
         fitView
         className="bg-zinc-950"
       >

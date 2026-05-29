@@ -1,5 +1,5 @@
-from vector_memory.chroma_client import memory_collection
-from vector_memory.embedding_model import embedding_model
+from vector_memory.chroma_client import get_memory_collection
+from vector_memory.embedding_model import get_embedding_model
 import uuid
 import json
 
@@ -11,11 +11,9 @@ def store_single_memory(project_id, memory_data):
     if not embedding_text:
         return
 
-    embedding = embedding_model.encode(
-        embedding_text
-    ).tolist()
+    embedding = get_embedding_model().encode(embedding_text).tolist()
 
-    memory_collection.add(
+    get_memory_collection().add(
         ids=[str(uuid.uuid4())],
 
         embeddings=[embedding],
@@ -42,11 +40,9 @@ def store_memory(project_id, memory_data):
         store_single_memory(project_id, memory_data)
 def retrieve_memories(project_id, current_scene):
 
-    query_embedding = embedding_model.encode(
-        current_scene
-    ).tolist()
+    query_embedding = get_embedding_model().encode(current_scene).tolist()
 
-    results = memory_collection.query(
+    results = get_memory_collection().query(
         query_embeddings=[query_embedding],
         n_results=3,
         where={

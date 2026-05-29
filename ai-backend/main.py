@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from groq import Groq
 from dotenv import load_dotenv
 import os
+import json
 from memory.memory_store import add_memory, get_memories
 from vector_memory.memory_engine import store_memory, retrieve_memories
 from data.relationships import (
@@ -12,6 +13,13 @@ from data.relationships import (
 )
 from vector_memory.memory_extractor import (
     extract_memory
+)
+from story_bible.story_bible_engine import (
+    create_story_bible,
+    get_story_bible,
+    analyze_story_impact,
+    merge_story_bible_analysis,
+    format_story_bible_for_prompt,
 )
 from director_engine import generate_direction
 from image_generator import generate_scene_image
@@ -24,6 +32,10 @@ from character_engine.thought_engine import get_character_hidden_thoughts
 from data.emotions import get_emotion_state
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
+import time
+from groq_utils import compute_emotion_deltas, groq_chat_completion, truncate_for_analysis
+
+POST_SCENE_LLM_DELAY_SEC = 2.5
 
 class SceneRequest(BaseModel):
     scene: str
@@ -32,6 +44,7 @@ class SceneRequest(BaseModel):
     tone: Optional[str] = "neutral"
     past_memories: Optional[str] = None
     relationships: Optional[Dict[str, Any]] = {}
+    project_id: Optional[str] = "default_project"
 
 load_dotenv()
 
@@ -66,6 +79,11 @@ def home():
         "message": "EchoVerse AI Backend Running"
     }
 
+
+@app.get("/story-bible")
+def get_story_bible_endpoint(project_id: str = "default_project"):
+    return create_story_bible(project_id)
+
 @app.post("/chat")
 def chat(prompt: str):
 
@@ -92,12 +110,15 @@ def generate_scene(request_data: SceneRequest):
         
     scene = data.get("scene", "")
     tone = data.get("tone", "neutral")
+    project_id = data.get("project_id") or "default_project"
+
+    story_bible_prompt = format_story_bible_for_prompt(project_id)
     
     # Read past memories sent from Next.js (isolated db memory), fallback to local memory_store
     past_memories = data.get("past_memories")
     if not past_memories:
         past_memories = retrieve_memories(
-            project_id="default_project",
+            project_id=project_id,
             current_scene=scene
         )
     
@@ -205,7 +226,7 @@ CURRENT DIRECTIONAL RELATIONSHIP DYNAMICS
 MEMORY & PAST EVENTS
 ========================
 {past_memories}
-
+{story_bible_prompt}
 ========================
 CURRENT SCENE PROMPT
 ========================
@@ -276,7 +297,8 @@ Example JSON:
 
     # Try JSON mode first, fall back to plain text if Groq rejects it
     try:
-        completion = client.chat.completions.create(
+        completion = groq_chat_completion(
+            client,
             model="llama-3.1-8b-instant",
             messages=messages,
             response_format={"type": "json_object"},
@@ -285,7 +307,8 @@ Example JSON:
         response_text = completion.choices[0].message.content
     except Exception as json_err:
         print(f"JSON mode failed, retrying without JSON mode: {json_err}")
-        completion = client.chat.completions.create(
+        completion = groq_chat_completion(
+            client,
             model="llama-3.1-8b-instant",
             messages=messages,
             max_tokens=1500
@@ -317,20 +340,37 @@ Example JSON:
         generated_scene = response_text
         updated_emotions = None
 
+    scene_for_analysis = truncate_for_analysis(generated_scene)
+
     # --- Memory extraction (non-blocking) ---
+    time.sleep(POST_SCENE_LLM_DELAY_SEC)
     try:
-        memory_data = extract_memory(generated_scene)
+        memory_data = extract_memory(scene_for_analysis)
         print("\n" + "="*50)
         print("EXTRACTED EMOTIONAL MEMORY OBJECT:")
         print(json.dumps(memory_data, indent=2))
         print("="*50 + "\n")
         store_memory(
-            project_id="default_project",
+            project_id=project_id,
             memory_data=memory_data
         )
         add_memory(scene)
     except Exception as e:
         print(f"Error in memory extraction/storage: {e}")
+
+    # --- Story bible analysis (non-blocking) ---
+    time.sleep(POST_SCENE_LLM_DELAY_SEC)
+    story_bible = None
+    try:
+        bible_analysis = analyze_story_impact(scene_for_analysis)
+        print("\n" + "=" * 50)
+        print("STORY BIBLE ANALYSIS:")
+        print(json.dumps(bible_analysis, indent=2))
+        print("=" * 50 + "\n")
+        story_bible = merge_story_bible_analysis(project_id, bible_analysis)
+    except Exception as e:
+        print(f"Error in story bible analysis: {e}")
+        story_bible = get_story_bible(project_id)
 
     # --- Relationship updates (non-blocking) ---
     try:
@@ -349,9 +389,10 @@ Example JSON:
         print(f"Error updating relationships: {e}")
 
     # --- Director engine (non-blocking) ---
+    time.sleep(POST_SCENE_LLM_DELAY_SEC)
     direction_data = None
     try:
-        direction_data = generate_direction(generated_scene)
+        direction_data = generate_direction(scene_for_analysis)
     except Exception as e:
         print(f"Error generating direction: {e}")
 
@@ -381,7 +422,8 @@ Example JSON:
         "direction": direction_data,
         "image": image_filenames[0] if image_filenames else None,
         "images": image_filenames,
-        "hidden_thoughts": hidden_thoughts_dict
+        "hidden_thoughts": hidden_thoughts_dict,
+        "story_bible": story_bible,
     }
 
 @app.delete("/generated_images/{filename}")
@@ -398,3 +440,102 @@ def delete_image(filename: str):
         except Exception as e:
             return {"status": "error", "message": f"Failed to delete file: {str(e)}"}
     return {"status": "error", "message": "File not found"}
+
+def _parse_json_response(response_text):
+    cleaned = response_text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    return cleaned.strip()
+
+class CharacterSummaryRequest(BaseModel):
+    character: Dict[str, Any]
+    scenes: Optional[List[Dict[str, Any]]] = []
+    story_bible: Optional[Dict[str, Any]] = None
+
+@app.post("/character-summary")
+def character_summary(request_data: CharacterSummaryRequest):
+    char = request_data.character
+    scenes = request_data.scenes or []
+    bible = request_data.story_bible or {}
+    
+    char_name = char.get("name", "Unnamed")
+    
+    scenes_context = ""
+    if scenes:
+        scenes_context = "Scenes history involving this character:\n"
+        for idx, s in enumerate(scenes):
+            scenes_context += f"- Scene {idx+1}: {s.get('title', 'Untitled')} - Prompt: {s.get('prompt')}\n"
+            if s.get('direction'):
+                scenes_context += f"  Direction: {s.get('direction')}\n"
+    
+    prompt = f"""
+You are EchoVerse, a narrative design assistant.
+Analyze the following character profile, story bible context, and history of scenes they participated in.
+
+Character Profile:
+- Name: {char_name}
+- Age: {char.get("age")}
+- Gender: {char.get("gender")}
+- Core Traits: {char.get("core_traits")}
+- Strengths: {char.get("strengths")}
+- Flaws: {char.get("flaws")}
+- Fears: {char.get("fears")}
+- Goals: {char.get("goals")}
+- Values: {char.get("values")}
+- Attachment Style: {char.get("attachment_style")}
+- Communication Style: {char.get("communication_style")}
+- Voice Style: {char.get("voice_style")}
+
+Story Bible context:
+{json.dumps(bible)}
+
+{scenes_context}
+
+Your task:
+1. Generate a concise, high-quality, professional narrative summary of this character's state, personality, goals, fears, relationships, and evolution so far (about 2-3 sentences).
+2. Generate an evolution timeline showing how they shifted emotionally or behaviorally across the scenes they were in. Give each timeline entry a clear "sceneNumber" (e.g. 1, 5, 10 or whatever the index is) and a short "state" label (e.g. "Confident", "Emotionally Guarded", "Trusting Again").
+
+You MUST return your output as a valid JSON object with exactly two keys:
+1. "summary": The paragraph summary text.
+2. "evolution": A list of objects, each containing:
+   - "sceneNumber": The scene number index (integer, e.g. 1, 2, 3...)
+   - "title": The title of the scene (string)
+   - "state": A short description of the character's emotional state or shift in that scene (string, e.g. "Emotionally Guarded")
+
+Example JSON output format:
+{{
+  "summary": "Aisha is an emotionally reserved but deeply loyal individual. Following Ryan's confession, she became more cautious in expressing her feelings. Although trust remains strong, unresolved tension continues to influence their interactions.",
+  "evolution": [
+    {{ "sceneNumber": 1, "title": "First Meeting", "state": "Confident" }},
+    {{ "sceneNumber": 2, "title": "The Confession", "state": "Emotionally Guarded" }},
+    {{ "sceneNumber": 3, "title": "Reconciliation", "state": "Trusting Again" }}
+  ]
+}}
+"""
+
+    messages = [
+        {"role": "user", "content": prompt}
+    ]
+    
+    completion = groq_chat_completion(
+        client,
+        model="llama-3.1-8b-instant",
+        messages=messages,
+        response_format={"type": "json_object"},
+        max_tokens=1000
+    )
+    
+    response_text = completion.choices[0].message.content.strip()
+    cleaned = _parse_json_response(response_text)
+    
+    try:
+        return json.loads(cleaned)
+    except Exception as e:
+        return {
+            "summary": f"{char_name} is a character in the universe.",
+            "evolution": []
+        }

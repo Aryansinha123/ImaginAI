@@ -1,6 +1,7 @@
 import os
 import json
 from groq import Groq
+from groq_utils import groq_chat_completion
 
 def generate_hidden_thought_prompt(
     character_brain,
@@ -45,16 +46,12 @@ def get_character_hidden_thoughts(client: Groq, character_name: str, character_b
     prompt = generate_hidden_thought_prompt(character_brain, emotional_state, memories, scene)
     
     try:
-        completion = client.chat.completions.create(
+        completion = groq_chat_completion(
+            client,
             model="llama-3.1-8b-instant",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
+            messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
-            max_tokens=400
+            max_tokens=400,
         )
         response_text = completion.choices[0].message.content
         cleaned_text = response_text.strip()

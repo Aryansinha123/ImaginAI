@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
+import { useToast } from "./ToastProvider";
 import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { EMOTION_KEYS, parseEmotionDisplayEntry } from "../lib/emotionUtils";
 
 // Helper: safely convert any value to a renderable string (prevents React "Objects are not valid as a React child" crashes)
 const safeStr = (val, fallback = "") => {
@@ -20,6 +22,7 @@ const safeStr = (val, fallback = "") => {
 
 export default function SceneStudioView({ activeScene, onSelectScene }) {
   const { activeProject, characters: rawCharacters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
+  const { toast, confirmAction } = useToast();
 
   // Sanitize characters to ensure no nested objects leak into JSX renders
   const characters = (rawCharacters || []).map(c => ({
@@ -161,7 +164,11 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
       branch_id: branchId || "main",
       decision: decisionObj
     });
-    alert("Scene details saved successfully!");
+    toast({
+      type: "success",
+      title: "Scene saved",
+      message: "Metadata and decision details are up to date.",
+    });
   };
 
   const tones = ["romantic", "awkward", "tense", "nostalgic", "emotional", "melancholic", "suspenseful"];
@@ -535,15 +542,18 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                         return (
                           <button
                             key={idx}
-                            onClick={() => {
+                            onClick={async () => {
                               if (childScene) {
                                 onSelectScene(childScene);
                               } else {
-                                if (
-                                  confirm(
-                                    `No scene exists for the choice "${choice}". Would you like to branch a new reality from here?`
-                                  )
-                                ) {
+                                const shouldBranch = await confirmAction({
+                                  title: "Branch a new reality?",
+                                  message: `No scene exists for "${choice}" yet. Create a fresh branch from this decision point?`,
+                                  confirmText: "Create Branch",
+                                  variant: "default",
+                                });
+
+                                if (shouldBranch) {
                                   onSelectScene(null);
                                   setParentId(activeScene.id);
                                   setBranchId(choice);
@@ -677,15 +687,12 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                               <span className="text-purple-300">{toName}</span>
                             </h5>
                             <div className="grid grid-cols-1 gap-2">
-                              {Object.entries(pairDeltas).map(([emotion, data]) => {
-                                const isOldVal = typeof data === 'number';
-                                const delta = isOldVal ? data : data.delta;
-                                const previous = isOldVal ? null : data.previous;
-                                const newVal = isOldVal ? null : data.new;
-                                
+                              {EMOTION_KEYS.filter((e) => pairDeltas[e] !== undefined).map((emotion) => {
+                                const raw = pairDeltas[emotion];
+                                const { previous, newVal, delta } = parseEmotionDisplayEntry(raw);
                                 const isPositive = delta > 0;
-                                const isNegative = delta < 0;
                                 const noChange = delta === 0;
+                                const showValues = previous !== null && newVal !== null;
 
                                 return (
                                   <div key={emotion} className="flex items-center justify-between px-3 py-1.5 bg-zinc-950/40 border border-zinc-850/30 rounded-lg">
@@ -693,18 +700,20 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                                       {emotion}
                                     </span>
                                     <div className="flex items-center gap-2.5">
-                                      {!isOldVal && (
+                                      {showValues && (
                                         <span className="text-[11px] text-zinc-500 font-mono">
                                           {previous}% &rarr; <span className="text-zinc-300 font-bold">{newVal}%</span>
                                         </span>
                                       )}
-                                      {!noChange && (
-                                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                                          {isPositive ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                                          {isPositive ? '+' : ''}{delta}%
-                                        </div>
+                                      {!showValues && newVal !== null && (
+                                        <span className="text-[11px] text-zinc-400 font-mono font-bold">{newVal}%</span>
                                       )}
-                                      {noChange && (
+                                      {!noChange ? (
+                                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${isPositive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+                                          {isPositive ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                                          {isPositive ? "+" : ""}{delta}%
+                                        </div>
+                                      ) : (
                                         <div className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-850 text-zinc-500">
                                           0%
                                         </div>
@@ -716,16 +725,11 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                             </div>
                           </div>
                         );
-                      } else {
-                        // Fallback/Legacy flat list rendering
-                        const isOldFormat = typeof pairDeltas === 'number';
-                        const delta = isOldFormat ? pairDeltas : pairDeltas.delta;
-                        const previous = isOldFormat ? null : pairDeltas.previous;
-                        const newVal = isOldFormat ? null : pairDeltas.new;
-                        
+                      } else if (typeof pairDeltas === "object" && pairDeltas !== null) {
+                        const { previous, newVal, delta } = parseEmotionDisplayEntry(pairDeltas);
                         const isPositive = delta > 0;
-                        const isNegative = delta < 0;
                         const noChange = delta === 0;
+                        const showValues = previous !== null && newVal !== null;
 
                         return (
                           <div key={pairKey} className="flex items-center justify-between px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-xl">
@@ -733,7 +737,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                                {pairKey}
                             </span>
                             <div className="flex items-center gap-3">
-                               {!isOldFormat && (
+                               {showValues && (
                                  <span className="text-xs text-zinc-500 font-mono">{previous}% &rarr; <span className="text-zinc-300 font-bold">{newVal}%</span></span>
                                )}
                                {!noChange && (

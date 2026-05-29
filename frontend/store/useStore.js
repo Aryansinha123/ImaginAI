@@ -150,9 +150,14 @@ export const useStore = create((set, get) => ({
         API.get(`/projects/${projectId}/characters`),
         API.get(`/projects/${projectId}/scenes`)
       ]);
+      const sortedScenes = [...sceneRes.data].sort((a, b) => {
+        const orderDiff = (a.order ?? 0) - (b.order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      });
       set({
         characters: charRes.data,
-        scenes: sceneRes.data,
+        scenes: sortedScenes,
         isLoading: false
       });
     } catch (err) {
@@ -339,7 +344,8 @@ export const useStore = create((set, get) => ({
       });
       set((state) => ({
         scenes: [...state.scenes, res.data].sort((a, b) => a.order - b.order),
-        isGenerating: false
+        isGenerating: false,
+        activeScene: res.data,
       }));
       return res.data;
     } catch (err) {
@@ -386,6 +392,7 @@ export const useStore = create((set, get) => ({
         image,
         images,
         hidden_thoughts,
+        emotion_deltas: genRes.data.emotion_deltas || {},
         parent_id,
         branch_id,
         decision
@@ -393,6 +400,7 @@ export const useStore = create((set, get) => ({
 
       set((state) => ({
         scenes: state.scenes.map((s) => (s.id === sceneId ? patchRes.data : s)),
+        activeScene: state.activeScene?.id === sceneId ? patchRes.data : state.activeScene,
         isGenerating: false
       }));
       return patchRes.data;

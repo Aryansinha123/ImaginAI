@@ -1,14 +1,16 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import DashboardView from "./DashboardView";
-import CharactersView from "./CharactersView";
+import CharacterStudio from "./CharacterStudio";
 import TimelineView from "./TimelineView";
 import MemoriesView from "./MemoriesView";
 import SceneStudioView from "./SceneStudioView";
 import SettingsView from "./SettingsView";
 import RelationshipCanvasView from "./RelationshipCanvasView";
 import GalleryView from "./GalleryView";
+import StoryBibleView from "./StoryBibleView";
 import { Sparkles, Film, Loader2 } from "lucide-react";
 
 export default function ProjectDashboard() {
@@ -21,12 +23,23 @@ export default function ProjectDashboard() {
     isLoading
   } = useStore();
 
+  const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    // Set initial time on mount to prevent hydration mismatch
+    setCurrentTime(new Date().toLocaleTimeString());
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleTimeString());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex-1 h-screen bg-zinc-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-10 h-10 text-purple-500 animate-spin" />
-          <span className="text-xs font-mono tracking-widest text-zinc-500 uppercase">
+          <span className="text-xs font-mono tracking-widest text-zinc-555 uppercase">
             Synchronizing Universe...
           </span>
         </div>
@@ -37,7 +50,7 @@ export default function ProjectDashboard() {
   const renderActiveView = () => {
     switch (activeView) {
       case "Characters":
-        return <CharactersView />;
+        return <CharacterStudio />;
       case "Relationship Canvas":
         return <RelationshipCanvasView />;
       case "Timeline":
@@ -49,6 +62,8 @@ export default function ProjectDashboard() {
         );
       case "Memories":
         return <MemoriesView />;
+      case "Story Bible":
+        return <StoryBibleView />;
       case "Scene Studio":
         return (
           <SceneStudioView
@@ -109,6 +124,7 @@ export default function ProjectDashboard() {
       {/* Footer */}
       <footer className="px-6 py-2 border-t border-zinc-900 bg-zinc-950/20 text-[10px] text-zinc-500 font-mono flex items-center justify-between z-10 shrink-0">
         <span>EchoVerse Studio &copy; {new Date().getFullYear()}</span>
+        <span>Local Time: {currentTime}</span>
         <span>Project Initiated: {activeProject.created_at ? new Date(activeProject.created_at).toLocaleString() : 'Recently'}</span>
       </footer>
     </div>

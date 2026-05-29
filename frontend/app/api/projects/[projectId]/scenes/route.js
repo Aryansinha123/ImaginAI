@@ -2,6 +2,11 @@ import clientPromise from "@/lib/mongodb";
 import { getUserIdFromRequest } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 import axios from "axios";
+import {
+  EMOTION_KEYS,
+  coerceEmotionNumber,
+  buildEmotionDeltasFromApi,
+} from "@/lib/emotionUtils";
 
 async function getAncestors(db, parentId, limit = 3) {
   const ancestors = [];
@@ -44,7 +49,16 @@ async function getAccumulatedEmotionsFromDb(db, projectId, startSceneId) {
         if (!resolvedKeys.has(key)) {
           const values = {};
           for (const [emName, emVal] of Object.entries(deltas)) {
-            values[emName] = typeof emVal === 'number' ? emVal : (emVal.new !== undefined ? emVal.new : emVal);
+            const lower = emName.toLowerCase();
+            if (!EMOTION_KEYS.includes(lower)) continue;
+            if (typeof emVal === "number") {
+              values[lower] = coerceEmotionNumber(emVal);
+            } else if (emVal && typeof emVal === "object") {
+              values[lower] = coerceEmotionNumber(
+                emVal.new !== undefined ? emVal.new : emVal,
+                50
+              );
+            }
           }
           emotions[key] = values;
           resolvedKeys.add(key);
@@ -237,7 +251,8 @@ export async function POST(req, { params }) {
         characters: assignedCharacters,
         tone: tone || "neutral",
         past_memories,
-        relationships: relationships
+        relationships: relationships,
+        project_id: projectId,
       });
       generatedText = apiRes.data.scene;
       directionData = apiRes.data.direction;
@@ -248,59 +263,12 @@ export async function POST(req, { params }) {
       console.log("Python response:", apiRes.data);
 
       if (apiRes.data.updated_emotions) {
-        const nameToChar = {};
-        assignedCharacters.forEach(c => {
-          nameToChar[c.name.toLowerCase()] = c;
-        });
-
-        Object.keys(apiRes.data.updated_emotions).forEach(key => {
-          const parts = key.split("->");
-          if (parts.length === 2) {
-            const fromName = parts[0].trim().toLowerCase();
-            const toName = parts[1].trim().toLowerCase();
-            const fromChar = nameToChar[fromName];
-            const toChar = nameToChar[toName];
-
-            if (fromChar && toChar) {
-              const newEms = apiRes.data.updated_emotions[key];
-
-              // Base emotions
-              let currentEms = ancestorEmotions[key] || null;
-              if (!currentEms && project.canvas_edges) {
-                const edge = project.canvas_edges.find(e =>
-                  (e.source === fromChar._id.toString() && e.target === toChar._id.toString()) ||
-                  (e.source === toChar._id.toString() && e.target === fromChar._id.toString())
-                );
-                if (edge && edge.emotions) {
-                  const isSource = edge.source === fromChar._id.toString();
-                  if (isSource && edge.emotions.source_to_target) {
-                    currentEms = edge.emotions.source_to_target;
-                  } else if (!isSource && edge.emotions.target_to_source) {
-                    currentEms = edge.emotions.target_to_source;
-                  } else if (typeof edge.emotions.trust === "number") {
-                    currentEms = edge.emotions;
-                  }
-                }
-              }
-              if (!currentEms) {
-                currentEms = { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 };
-              }
-
-              const deltas = {};
-              Object.keys(newEms).forEach(k => {
-                const lowerK = k.toLowerCase();
-                if (currentEms[lowerK] !== undefined) {
-                  deltas[lowerK] = {
-                    previous: currentEms[lowerK],
-                    new: newEms[k],
-                    delta: newEms[k] - currentEms[lowerK]
-                  };
-                }
-              });
-              emotionDeltas[key] = deltas;
-            }
-          }
-        });
+        emotionDeltas = buildEmotionDeltasFromApi(
+          apiRes.data.updated_emotions,
+          assignedCharacters,
+          ancestorEmotions,
+          project
+        );
       }
     }
 

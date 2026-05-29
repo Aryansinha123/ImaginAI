@@ -1,5 +1,11 @@
 from sentence_transformers import SentenceTransformer
 
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+_model = None
+
+
+def get_embedding_model():
+    """Lazy-load the transformer so uvicorn reload starts quickly on Windows."""
+    global _model
+    if _model is None:
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model

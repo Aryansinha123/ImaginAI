@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
+import { useToast } from "./ToastProvider";
 import { Settings, Trash2, Edit3 } from "lucide-react";
 
 export default function SettingsView() {
   const { activeProject, renameProject, deleteProject } = useStore();
+  const { toast, confirmAction } = useToast();
   const [name, setName] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
@@ -19,16 +21,31 @@ export default function SettingsView() {
     e.preventDefault();
     if (!name.trim()) return;
     await renameProject(activeProject.id, name.trim());
-    alert("Project renamed successfully!");
+    toast({
+      type: "success",
+      title: "Project renamed",
+      message: "Your universe has its new title.",
+    });
   };
 
   const handleDelete = async (e) => {
     e.preventDefault();
     if (deleteConfirm.trim() !== activeProject.name) {
-      alert("Please match the project name to confirm deletion.");
+      toast({
+        type: "error",
+        title: "Name does not match",
+        message: "Type the project name exactly to unlock deletion.",
+      });
       return;
     }
-    if (confirm(`Are you absolutely sure you want to delete "${activeProject.name}"? This action is permanent.`)) {
+    const confirmed = await confirmAction({
+      title: `Delete "${activeProject.name}"?`,
+      message: "This permanently removes the project, characters, timelines, scene cards, and memory continuity.",
+      confirmText: "Delete Project",
+      variant: "danger",
+    });
+
+    if (confirmed) {
       await deleteProject(activeProject.id);
     }
   };

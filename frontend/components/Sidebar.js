@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronUp,
   Network,
-  Image
+  Image,
+  BookOpen
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -56,6 +57,7 @@ export default function Sidebar() {
     { name: "Relationship Canvas", icon: Network },
     { name: "Timeline", icon: Film },
     { name: "Memories", icon: History },
+    { name: "Story Bible", icon: BookOpen },
     { name: "Scene Studio", icon: Sparkles },
     { name: "Gallery", icon: Image },
     { name: "Settings", icon: Settings }

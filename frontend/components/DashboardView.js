@@ -1,7 +1,7 @@
 "use client";
 
 import { useStore } from "../store/useStore";
-import { Sparkles, Users, History, Settings, Film, Plus } from "lucide-react";
+import { Sparkles, Users, History, Settings, Film, Plus, BookOpen } from "lucide-react";
 
 export default function DashboardView({ onViewChange }) {
   const { activeProject, characters, scenes } = useStore();
@@ -34,6 +34,13 @@ export default function DashboardView({ onViewChange }) {
       icon: History,
       color: "from-amber-500/20 to-orange-500/20 border-amber-500/30 text-amber-400",
       view: "Memories"
+    },
+    {
+      title: "Story Bible",
+      desc: "Narrative direction — major events, active threads, and character evolution.",
+      icon: BookOpen,
+      color: "from-yellow-500/20 to-amber-500/20 border-yellow-500/30 text-yellow-400",
+      view: "Story Bible"
     }
   ];
 

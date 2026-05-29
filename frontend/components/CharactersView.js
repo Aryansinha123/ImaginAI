@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "../store/useStore";
+import { useToast } from "./ToastProvider";
 import { User, Plus, X, Heart, MessageCircle, Eye, Star } from "lucide-react";
 
 function TagInput({ label, tags, setTags, placeholder, examples }) {
@@ -68,6 +69,7 @@ function TagInput({ label, tags, setTags, placeholder, examples }) {
 
 export default function CharactersView() {
   const { activeProject, characters, createCharacter, updateCharacter, deleteCharacter } = useStore();
+  const { toast, confirmAction } = useToast();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingChar, setEditingChar] = useState(null);
 
@@ -194,8 +196,18 @@ export default function CharactersView() {
 
     if (editingChar) {
       await updateCharacter(activeProject.id, editingChar.id, charData);
+      toast({
+        type: "success",
+        title: "Character updated",
+        message: `${charData.name} is ready for the next scene.`,
+      });
     } else {
       await createCharacter(charData);
+      toast({
+        type: "success",
+        title: "Character created",
+        message: `${charData.name} joined the cast.`,
+      });
     }
 
     setShowAddForm(false);
@@ -682,8 +694,20 @@ export default function CharactersView() {
                   <button
                     type="button"
                     onClick={async () => {
-                      if (confirm(`Are you sure you want to delete ${editingChar.name}?`)) {
+                      const confirmed = await confirmAction({
+                        title: `Delete ${editingChar.name}?`,
+                        message: "This removes the character from the project cast.",
+                        confirmText: "Delete Character",
+                        variant: "danger",
+                      });
+
+                      if (confirmed) {
                         await deleteCharacter(activeProject.id, editingChar.id);
+                        toast({
+                          type: "success",
+                          title: "Character deleted",
+                          message: `${editingChar.name} was removed from the cast.`,
+                        });
                         setShowAddForm(false);
                         setEditingChar(null);
                       }

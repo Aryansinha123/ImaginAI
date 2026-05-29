@@ -41,6 +41,7 @@ export async function PATCH(req, { params }) {
     if (updateData.parent_id !== undefined) fieldsToUpdate.parent_id = updateData.parent_id || null;
     if (updateData.branch_id !== undefined) fieldsToUpdate.branch_id = updateData.branch_id || "main";
     if (updateData.decision !== undefined) fieldsToUpdate.decision = updateData.decision || null;
+    if (updateData.emotion_deltas !== undefined) fieldsToUpdate.emotion_deltas = updateData.emotion_deltas || {};
 
     const result = await db.collection("scenes").findOneAndUpdate(
       { _id: new ObjectId(sceneId), project_id: new ObjectId(projectId) },
