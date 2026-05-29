@@ -20,6 +20,8 @@ from visual_prompt_engine import (
     build_visual_prompt
 )
 from prompt_builders.character_brain import build_character_brain
+from character_engine.thought_engine import get_character_hidden_thoughts
+from data.emotions import get_emotion_state
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 
@@ -123,9 +125,49 @@ def generate_scene(request_data: SceneRequest):
         relationships_str += "\n"
 
     character_brains_list = []
+    hidden_thoughts_dict = {}
+    hidden_thoughts_prompt_list = []
+
     for char in characters:
-        character_brains_list.append(build_character_brain(char))
+        char_name = char.get("name", "Unnamed")
+        brain_str = build_character_brain(char)
+        character_brains_list.append(brain_str)
+        
+        # Build emotional state for the character
+        indiv_emotions = get_emotion_state(char_name)
+        char_relationships = {}
+        for other_char in characters:
+            other_name = other_char.get("name")
+            if other_name and other_name != char_name:
+                char_relationships[f"{char_name}->{other_name}"] = get_relationship_state(char_name, other_name)
+        
+        emotional_state_str = f"Individual Emotions: {indiv_emotions}\n"
+        if char_relationships:
+            emotional_state_str += "Relationship Dynamics with other characters in the scene:\n"
+            for key, val in char_relationships.items():
+                emotional_state_str += f"- {key}: {val}\n"
+        
+        # Generate hidden thoughts for this character
+        thoughts = get_character_hidden_thoughts(
+            client=client,
+            character_name=char_name,
+            character_brain=brain_str,
+            emotional_state=emotional_state_str,
+            memories=past_memories,
+            scene=scene
+        )
+        hidden_thoughts_dict[char_name] = thoughts
+        
+        # Format the thoughts for prompt injection
+        hidden_thoughts_prompt_list.append(
+            f"Character: {char_name}\n"
+            f"- Hidden Thoughts: \"{thoughts.get('hidden_thoughts', '')}\"\n"
+            f"- Motivation: {thoughts.get('motivation', '')}\n"
+            f"- Secret Feeling: {thoughts.get('secret_feeling', '')}"
+        )
+
     character_brain_str = "\n".join(character_brains_list)
+    hidden_thoughts_prompt_str = "\n\n".join(hidden_thoughts_prompt_list)
 
     system_prompt = f"""
 You are EchoVerse, a modern, cinematic storytelling AI.
@@ -139,6 +181,15 @@ You must ONLY use the characters listed below. NEVER introduce new characters au
 Assigned Character Brain:
 
 {character_brain_str}
+
+========================
+CHARACTERS' HIDDEN THOUGHTS (INTERNAL STATES FOR THIS SCENE)
+========================
+These are the private internal thoughts, motivations, and secret feelings of the characters at the start of this scene. 
+Use them to guide each character's dialogue subtext, pauses, micro-expressions, and actions. 
+CRITICAL: Do NOT print these hidden thoughts verbatim in the screenplay text. They are private internal states and should influence their subtext and behavioral tension without being spoken directly.
+
+{hidden_thoughts_prompt_str}
 
 ========================
 SCENE PARAMETERS
@@ -329,5 +380,6 @@ Example JSON:
         "updated_emotions": updated_emotions,
         "direction": direction_data,
         "image": image_filenames[0] if image_filenames else None,
-        "images": image_filenames
+        "images": image_filenames,
+        "hidden_thoughts": hidden_thoughts_dict
     }

@@ -307,6 +307,55 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                 {generatedText}
               </div>
 
+              {/* Characters' Hidden Thoughts (Internal Subtext) */}
+              {activeScene && activeScene.hidden_thoughts && Object.keys(activeScene.hidden_thoughts).length > 0 && (
+                <div className="bg-gradient-to-br from-purple-950/20 via-zinc-900/30 to-zinc-950/40 border border-purple-500/10 p-6 rounded-3xl space-y-4 shadow-xl backdrop-blur-md relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl pointer-events-none" />
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-purple-400 font-bold mb-1 flex items-center gap-1.5 border-b border-zinc-850/80 pb-2.5">
+                    <MessageCircle className="w-3.5 h-3.5 text-purple-400" />
+                    Hidden Thoughts Engine & Character Subtext
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(activeScene.hidden_thoughts).map(([charName, thoughts]) => (
+                      <div key={charName} className="p-4 rounded-2xl bg-zinc-950/30 border border-zinc-850/50 space-y-3 hover:border-purple-500/20 transition-all duration-300">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center font-bold text-[10px] text-purple-400">
+                              {charName.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-xs font-bold text-zinc-200 font-mono uppercase tracking-wider">{charName}</span>
+                          </div>
+                          <span className="text-[9px] font-mono text-zinc-500 tracking-widest uppercase">Internal Mind</span>
+                        </div>
+                        
+                        <div className="space-y-2.5 text-xs">
+                          <div className="bg-zinc-950/45 p-3 rounded-xl border border-zinc-900 shadow-inner">
+                            <span className="text-[9px] font-mono uppercase tracking-wider text-purple-400/70 block mb-1">Hidden Thoughts (Subtext)</span>
+                            <span className="italic text-zinc-300 font-serif leading-relaxed">
+                              "{thoughts.hidden_thoughts}"
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div className="bg-zinc-900/10 border border-zinc-850/40 p-2 rounded-lg">
+                              <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Motivation</span>
+                              <span className="text-zinc-400 font-medium leading-tight block">{thoughts.motivation}</span>
+                            </div>
+                            {thoughts.secret_feeling && (
+                              <div className="bg-zinc-900/10 border border-zinc-850/40 p-2 rounded-lg">
+                                <span className="text-[8px] font-mono uppercase tracking-wider text-zinc-550 block mb-0.5">Secret Feeling</span>
+                                <span className="text-zinc-400 font-medium leading-tight block">{thoughts.secret_feeling}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Cinematic Director Notes */}
               {activeScene && activeScene.direction && (
                 <div className="bg-zinc-950/45 border border-zinc-850 p-5 rounded-2xl space-y-3.5 shadow-md">

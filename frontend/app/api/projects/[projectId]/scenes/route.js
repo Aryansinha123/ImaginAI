@@ -47,7 +47,8 @@ export async function GET(req, { params }) {
       created_at: s.created_at,
       images: s.images || (s.image ? [s.image] : []),
       image: s.image,
-      direction: s.direction
+      direction: s.direction,
+      hidden_thoughts: s.hidden_thoughts || {}
     }));
 
     return Response.json(mapped);
@@ -147,6 +148,7 @@ export async function POST(req, { params }) {
     let directionData = null;
     let imageFilename = null;
     let imageFilenames = [];
+    let hiddenThoughts = {};
 
     if (!generatedText) {
       // Call stateless FastAPI completions backend
@@ -161,6 +163,7 @@ export async function POST(req, { params }) {
       directionData = apiRes.data.direction;
       imageFilename = apiRes.data.image || null;
       imageFilenames = apiRes.data.images || (apiRes.data.image ? [apiRes.data.image] : []);
+      hiddenThoughts = apiRes.data.hidden_thoughts || {};
       
       console.log("Python response:", apiRes.data);
 
@@ -266,7 +269,8 @@ export async function POST(req, { params }) {
       emotion_deltas: emotionDeltas || {},
       direction: directionData || null,
       images: imageFilenames || [],
-      image: imageFilename
+      image: imageFilename,
+      hidden_thoughts: hiddenThoughts || {}
     };
 
     const result = await db.collection("scenes").insertOne(newScene);
@@ -285,7 +289,8 @@ export async function POST(req, { params }) {
       emotion_deltas: emotionDeltas || {},
       direction: directionData || null,
       images: newScene.images,
-      image: newScene.image || null
+      image: newScene.image || null,
+      hidden_thoughts: newScene.hidden_thoughts || {}
     });
   } catch (error) {
     console.error("Create Scene Error:", error);

@@ -37,6 +37,7 @@ export async function PATCH(req, { params }) {
     if (updateData.direction !== undefined) fieldsToUpdate.direction = updateData.direction || null;
     if (updateData.image !== undefined) fieldsToUpdate.image = updateData.image || null;
     if (updateData.images !== undefined) fieldsToUpdate.images = updateData.images || [];
+    if (updateData.hidden_thoughts !== undefined) fieldsToUpdate.hidden_thoughts = updateData.hidden_thoughts || {};
 
     const result = await db.collection("scenes").findOneAndUpdate(
       { _id: new ObjectId(sceneId), project_id: new ObjectId(projectId) },
@@ -61,7 +62,8 @@ export async function PATCH(req, { params }) {
       created_at: result.created_at,
       direction: result.direction || null,
       images: result.images || (result.image ? [result.image] : []),
-      image: result.image || null
+      image: result.image || null,
+      hidden_thoughts: result.hidden_thoughts || {}
     });
   } catch (error) {
     console.error("Update Scene Error:", error);
