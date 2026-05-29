@@ -47,6 +47,11 @@ export default function SettingsView() {
 
     if (confirmed) {
       await deleteProject(activeProject.id);
+      toast({
+        type: "success",
+        title: "Project deleted",
+        message: "The project universe and all its contents have been deleted.",
+      });
     }
   };
 
@@ -111,7 +116,7 @@ export default function SettingsView() {
           </div>
           <button
             type="submit"
-            disabled={deleteConfirm !== activeProject.name}
+            disabled={deleteConfirm.trim() !== activeProject.name}
             className="px-4 py-2 bg-red-950 text-red-400 hover:bg-red-900/10 disabled:bg-zinc-855 disabled:text-zinc-600 border border-red-900/20 rounded-xl font-bold transition-all text-xs cursor-pointer active:scale-95"
           >
             Delete Project Universe

@@ -7,8 +7,44 @@ import CharacterCard from "./CharacterCard";
 import CharacterTraits from "./CharacterTraits";
 import RelationshipPanel from "./RelationshipPanel";
 import EmotionPanel from "./EmotionPanel";
-import { User, Plus, X, ArrowLeft, Loader2, Sparkles, Brain, Network, Compass, Layers } from "lucide-react";
+import { User, Plus, X, ArrowLeft, Loader2, Sparkles, Brain, Network, Compass, Layers, TrendingUp } from "lucide-react";
 import API from "../lib/api";
+
+// Tag Input Component
+function FormTagInput({ label, tags, setTags, placeholder }) {
+  const [inputVal, setInputVal] = useState("");
+  const addTag = () => {
+    const trimmed = inputVal.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
+    setInputVal("");
+  };
+  return (
+    <div className="space-y-1.5 text-left">
+      <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-555 block font-semibold">{label}</label>
+      <div className="flex flex-wrap gap-2 p-2 bg-zinc-900 border border-zinc-800 rounded-xl min-h-[42px]">
+        {tags.map((tag, idx) => (
+          <span key={idx} className="flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-lg bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/25">
+            {tag}
+            <button type="button" onClick={() => setTags(tags.filter((_, i) => i !== idx))} className="text-purple-400 hover:text-purple-250 cursor-pointer">
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } }}
+          onBlur={addTag}
+          placeholder={tags.length === 0 ? placeholder : ""}
+          className="flex-1 bg-transparent text-white text-xs outline-none border-none py-0.5 min-w-[60px]"
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function CharacterStudio() {
   const { activeProject, characters, createCharacter, updateCharacter, deleteCharacter, scenes, canvasEdges, fetchProjectData } = useStore();
@@ -41,6 +77,10 @@ export default function CharacterStudio() {
   const [voiceStyle, setVoiceStyle] = useState("");
   const [relationshipType, setRelationshipType] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  
+  // Character Arc states
+  const [characterArc, setCharacterArc] = useState(null);
+  const [loadingArc, setLoadingArc] = useState(false);
 
   // AI Summary states
   const [aiSummary, setAiSummary] = useState("");
@@ -52,8 +92,39 @@ export default function CharacterStudio() {
       // Clear AI data when changing character
       setAiSummary("");
       setAiEvolution([]);
+      fetchCharacterArc(selectedChar.name);
+    } else {
+      setCharacterArc(null);
     }
   }, [selectedChar]);
+
+  useEffect(() => {
+    if (selectedChar && activeTab === "characterArc") {
+      fetchCharacterArc(selectedChar.name);
+    }
+  }, [selectedChar, activeTab]);
+
+  const fetchCharacterArc = async (charName) => {
+    if (!charName) return;
+    setLoadingArc(true);
+    try {
+      const res = await API.get(`/character-arc?characterName=${encodeURIComponent(charName)}`);
+      setCharacterArc(res.data);
+    } catch (err) {
+      console.error("Error fetching character arc:", err);
+      setCharacterArc({
+        starting_state: "Emotionally guarded",
+        current_state: "Emotionally guarded",
+        growth_direction: "Becoming emotionally open",
+        current_conflict: "Fear of abandonment",
+        arc_stage: "beginning",
+        arc_progress: 0,
+        history: []
+      });
+    } finally {
+      setLoadingArc(false);
+    }
+  };
 
   const loadAiSummary = async (charId) => {
     setLoadingSummary(true);
@@ -174,42 +245,6 @@ export default function CharacterStudio() {
     setShowAddForm(true);
   };
 
-  // Tag Input Component
-  function FormTagInput({ label, tags, setTags, placeholder }) {
-    const [inputVal, setInputVal] = useState("");
-    const addTag = () => {
-      const trimmed = inputVal.trim();
-      if (trimmed && !tags.includes(trimmed)) {
-        setTags([...tags, trimmed]);
-      }
-      setInputVal("");
-    };
-    return (
-      <div className="space-y-1.5 text-left">
-        <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block font-semibold">{label}</label>
-        <div className="flex flex-wrap gap-2 p-2 bg-zinc-900 border border-zinc-800 rounded-xl min-h-[42px]">
-          {tags.map((tag, idx) => (
-            <span key={idx} className="flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-lg bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/25">
-              {tag}
-              <button type="button" onClick={() => setTags(tags.filter((_, i) => i !== idx))} className="text-purple-400 hover:text-purple-250 cursor-pointer">
-                <X className="w-3 h-3" />
-              </button>
-            </span>
-          ))}
-          <input
-            type="text"
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(); } }}
-            onBlur={addTag}
-            placeholder={tags.length === 0 ? placeholder : ""}
-            className="flex-1 bg-transparent text-white text-xs outline-none border-none py-0.5 min-w-[60px]"
-          />
-        </div>
-      </div>
-    );
-  }
-
   // Render List View of all characters
   if (!selectedChar) {
     return (
@@ -298,6 +333,7 @@ export default function CharacterStudio() {
           { id: "profile", label: "Profile", icon: User },
           { id: "psychology", label: "Psychology", icon: Brain },
           { id: "relationships", label: "Relationships", icon: Network },
+          { id: "characterArc", label: "Character Arc", icon: TrendingUp },
           { id: "evolution", label: "Evolution", icon: Compass }
         ].map((tab) => {
           const Icon = tab.icon;
@@ -428,6 +464,128 @@ export default function CharacterStudio() {
               characters={characters}
               canvasEdges={canvasEdges}
             />
+          </div>
+        )}
+
+        {activeTab === "characterArc" && (
+          <div className="space-y-6 animate-fade-in text-left">
+            {loadingArc && !characterArc ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-4">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+                <span className="text-xs font-mono text-zinc-500">Loading character growth arc...</span>
+              </div>
+            ) : characterArc ? (
+              <>
+                {/* Arc Status Panel */}
+                <div className="bg-zinc-950/30 border border-zinc-900 p-6 rounded-2xl space-y-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                    <TrendingUp className="w-24 h-24 text-white" />
+                  </div>
+                  
+                  <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold block">
+                        Growth Journey
+                      </span>
+                      <h3 className="text-lg font-bold text-white mt-1">
+                        Current Arc: {characterArc.growth_direction || "Evolving"}
+                      </h3>
+                    </div>
+                    <span className="px-3 py-1 rounded-xl bg-purple-500/10 text-purple-450 border border-purple-500/25 text-xs font-bold capitalize font-mono">
+                      Stage: {characterArc.arc_stage || "Beginning"}
+                    </span>
+                  </div>
+
+                  {/* Visualizer */}
+                  {(() => {
+                    const progress = characterArc.arc_progress ?? 0;
+                    const totalBlocks = 18;
+                    const filledBlocks = Math.round((progress / 100) * totalBlocks);
+                    const emptyBlocks = totalBlocks - filledBlocks;
+                    const blockStr = "█".repeat(filledBlocks) + "░".repeat(emptyBlocks);
+                    return (
+                      <div className="space-y-2.5 bg-zinc-950/40 p-4 rounded-xl border border-zinc-900/60">
+                        <div className="flex items-center justify-between text-xs font-mono font-semibold text-zinc-400">
+                          <span>Arc Progression Visualizer</span>
+                          <span className="text-purple-455 font-bold">{progress}%</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-purple-500 tracking-tight text-sm select-none">{blockStr}</span>
+                          <div className="flex-1 h-2 bg-zinc-900 border border-zinc-800 rounded-full overflow-hidden p-[1px]">
+                            <div 
+                              className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-full transition-all duration-500 shadow-md shadow-purple-500/20"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Info Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div className="bg-zinc-900/40 border border-zinc-850 p-4 rounded-xl space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block">Starting State</span>
+                      <span className="text-sm font-semibold text-zinc-200">{characterArc.starting_state || "Not set"}</span>
+                    </div>
+                    <div className="bg-zinc-900/40 border border-zinc-850 p-4 rounded-xl space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block">Growth Direction</span>
+                      <span className="text-sm font-semibold text-zinc-200">{characterArc.growth_direction || "Not set"}</span>
+                    </div>
+                    <div className="bg-zinc-900/40 border border-zinc-850 p-4 rounded-xl space-y-1.5">
+                      <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block">Current Conflict</span>
+                      <span className="text-sm font-semibold text-zinc-200">{characterArc.current_conflict || "Not set"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline */}
+                <div className="bg-zinc-950/30 border border-zinc-900 p-6 rounded-2xl space-y-6">
+                  <div className="border-b border-zinc-900 pb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-mono uppercase tracking-wider text-purple-400 font-bold flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-purple-400" />
+                      Character Evolution Timeline
+                    </h3>
+                    {loadingArc && <Loader2 className="w-4 h-4 animate-spin text-purple-500" />}
+                  </div>
+
+                  {characterArc.history && characterArc.history.length > 0 ? (
+                    <div className="relative pl-6 border-l border-zinc-850 space-y-6 ml-3 mt-4">
+                      {characterArc.history.map((step, idx) => (
+                        <div key={idx} className="relative">
+                          {/* Dot */}
+                          <div className="absolute -left-[30.5px] top-1.5 w-2 h-2 rounded-full bg-purple-500 border border-purple-300 ring-4 ring-purple-500/10 shadow-lg shadow-purple-500/30" />
+                          <div className="space-y-1 text-left">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span className="text-[10px] font-mono font-bold text-purple-450 uppercase tracking-wider bg-purple-500/5 px-2 py-0.5 rounded border border-purple-500/15">
+                                Scene {step.scene}
+                              </span>
+                              <span className="text-zinc-500 text-xs font-semibold">·</span>
+                              <span className="text-xs font-bold text-white">{step.title}</span>
+                              <span className="text-zinc-500 text-xs font-semibold">·</span>
+                              <span className="text-xs font-bold text-purple-400 font-mono">{step.progress}% Progress</span>
+                            </div>
+                            <p className="text-sm text-zinc-300 font-semibold mt-1">
+                              {step.state}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-xs text-zinc-500 font-mono italic">
+                        No scene progression recorded yet. Generate scenes involving {selectedChar.name} to update the character development arc.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-xs text-zinc-500 font-mono italic">No Character Arc data available.</p>
+              </div>
+            )}
           </div>
         )}
 

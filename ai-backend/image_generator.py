@@ -29,9 +29,17 @@ def generate_scene_image(prompt):
         timeout=30
     )
 
-    image = Image.open(
-        BytesIO(response.content)
-    )
+    if response.status_code != 200:
+        print(f"HuggingFace API error: Status {response.status_code}, Response: {response.text}")
+        raise Exception(f"HuggingFace API error: {response.status_code} - {response.text[:200]}")
+
+    try:
+        image = Image.open(
+            BytesIO(response.content)
+        )
+    except Exception as e:
+        print(f"Failed to parse HuggingFace response content as image. Content preview: {response.content[:200]}")
+        raise e
 
     filename = f"{uuid.uuid4()}.png"
 

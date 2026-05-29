@@ -97,6 +97,20 @@ export const useStore = create((set, get) => ({
     });
   },
 
+  updateProfile: async (profileData) => {
+    try {
+      const res = await API.put("/profile", profileData);
+      set({ user: res.data });
+      if (typeof window !== "undefined") {
+        localStorage.setItem("imaginai_user", JSON.stringify(res.data));
+      }
+      return true;
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      return false;
+    }
+  },
+
   fetchProjects: async () => {
     try {
       const res = await API.get("/projects");
@@ -163,6 +177,9 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error("Error fetching project details:", err);
       set({ isLoading: false });
+      if (err.response?.status === 404) {
+        get().setActiveProject(null);
+      }
     }
   },
 
@@ -175,6 +192,9 @@ export const useStore = create((set, get) => ({
       });
     } catch (err) {
       console.error("Error fetching canvas state:", err);
+      if (err.response?.status === 404) {
+        get().setActiveProject(null);
+      }
     }
   },
 
@@ -407,6 +427,23 @@ export const useStore = create((set, get) => ({
     } catch (err) {
       console.error("Error regenerating scene:", err);
       set({ isGenerating: false });
+      return null;
+    }
+  },
+
+  generateSceneImages: async (sceneId) => {
+    const { activeProject } = get();
+    if (!activeProject || !sceneId) return null;
+    try {
+      const res = await API.post(`/projects/${activeProject.id}/scenes/${sceneId}/generate-images`);
+      // Update the scene in local state with the new images
+      set((state) => ({
+        scenes: state.scenes.map((s) => (s.id === sceneId ? res.data : s)),
+        activeScene: state.activeScene?.id === sceneId ? res.data : state.activeScene,
+      }));
+      return res.data;
+    } catch (err) {
+      console.error("Error generating scene images:", err);
       return null;
     }
   }

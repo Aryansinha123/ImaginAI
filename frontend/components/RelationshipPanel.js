@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { User } from "lucide-react";
 
 function MeterBar({ label, value, colorClass }) {
@@ -20,6 +21,8 @@ function MeterBar({ label, value, colorClass }) {
 }
 
 export default function RelationshipPanel({ character, characters = [], canvasEdges = [] }) {
+  const [directions, setDirections] = useState({}); // edge.id -> 'outgoing' | 'incoming'
+
   // Find all edges connected to this character
   const connectedEdges = canvasEdges.filter(
     (e) => e.source === character.id || e.target === character.id
@@ -44,6 +47,16 @@ export default function RelationshipPanel({ character, characters = [], canvasEd
 
             if (!otherChar) return null;
 
+            // Set state keys dynamically
+            const direction = directions[edge.id] || "outgoing";
+            const setDirectionForEdge = (dir) => {
+              setDirections((prev) => ({ ...prev, [edge.id]: dir }));
+            };
+
+            // outgoing = character -> otherChar (source_to_target if isSource, target_to_source if not)
+            // incoming = otherChar -> character (target_to_source if isSource, source_to_target if not)
+            const useSourceToTarget = (isSource && direction === "outgoing") || (!isSource && direction === "incoming");
+
             // Extract directional emotions or mutual emotions
             let trust = 50;
             let attachment = 50;
@@ -52,7 +65,7 @@ export default function RelationshipPanel({ character, characters = [], canvasEd
             let resentment = 0;
 
             if (edge.emotions) {
-              const ems = isSource 
+              const ems = useSourceToTarget 
                 ? (edge.emotions.source_to_target || edge.emotions) 
                 : (edge.emotions.target_to_source || edge.emotions);
               
@@ -68,20 +81,35 @@ export default function RelationshipPanel({ character, characters = [], canvasEd
                 key={edge.id}
                 className="bg-zinc-950/40 border border-zinc-900 rounded-2xl p-5 space-y-4 hover:border-zinc-850 transition-colors"
               >
-                {/* Header with target info */}
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
-                    {otherChar.avatarUrl ? (
-                      <img src={otherChar.avatarUrl} alt={otherChar.name} className="w-full h-full object-contain" />
-                    ) : (
-                      <User className="w-5 h-5 text-zinc-650" />
-                    )}
+                {/* Header with direction dropdown selector */}
+                <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-900/50 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
+                      {otherChar.avatarUrl ? (
+                        <img src={otherChar.avatarUrl} alt={otherChar.name} className="w-full h-full object-contain" />
+                      ) : (
+                        <User className="w-5 h-5 text-zinc-650" />
+                      )}
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white leading-tight">{otherChar.name}</h4>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-900/60 text-zinc-450 border border-zinc-850 font-semibold inline-block mt-0.5">
+                        {edge.label || "Connected"}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-white leading-tight">{otherChar.name}</h4>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-450 border border-zinc-850 font-semibold inline-block mt-0.5">
-                      {edge.label || "Connected"}
-                    </span>
+                  
+                  {/* Premium Selector Dropdown */}
+                  <div className="flex flex-col items-end gap-1">
+                    <label className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">Perspective</label>
+                    <select
+                      value={direction}
+                      onChange={(e) => setDirectionForEdge(e.target.value)}
+                      className="bg-zinc-900 text-[10px] font-bold font-mono text-purple-400 rounded-lg px-2.5 py-1 border border-zinc-800 outline-none cursor-pointer focus:border-purple-500/50 transition-all"
+                    >
+                      <option value="outgoing">{character.name} ➔ {otherChar.name}</option>
+                      <option value="incoming">{otherChar.name} ➔ {character.name}</option>
+                    </select>
                   </div>
                 </div>
 
@@ -105,3 +133,4 @@ export default function RelationshipPanel({ character, characters = [], canvasEd
     </div>
   );
 }
+

@@ -190,6 +190,23 @@ def generate_scene(request_data: SceneRequest):
     character_brain_str = "\n".join(character_brains_list)
     hidden_thoughts_prompt_str = "\n\n".join(hidden_thoughts_prompt_list)
 
+    character_arcs_list = []
+    from data.character_arcs import get_character_arc
+    for char in characters:
+        char_name = char.get("name", "Unnamed")
+        arc = get_character_arc(char_name)
+        arc_str = (
+            f"Character: {char_name}\n"
+            f"- Starting State: {arc.get('starting_state')}\n"
+            f"- Current State: {arc.get('current_state')}\n"
+            f"- Growth Direction: {arc.get('growth_direction')}\n"
+            f"- Current Conflict: {arc.get('current_conflict')}\n"
+            f"- Arc Stage: {arc.get('arc_stage')}\n"
+            f"- Arc Progress: {arc.get('arc_progress')}%"
+        )
+        character_arcs_list.append(arc_str)
+    character_arcs_str = "\n\n".join(character_arcs_list)
+
     system_prompt = f"""
 You are EchoVerse, a modern, cinematic storytelling AI.
 Your purpose is to generate highly realistic, emotionally grounded, and immersive scenes that feel like a premium Netflix drama or indie film.
@@ -202,6 +219,13 @@ You must ONLY use the characters listed below. NEVER introduce new characters au
 Assigned Character Brain:
 
 {character_brain_str}
+
+========================
+CHARACTER ARCS & GROWTH JOURNEY (VITAL CONTEXT)
+========================
+These fields represent each character's current stage of development, starting points, and conflicts. Characters must react and speak in a way that respects their current progress along their growth arcs (e.g. beginning stage is much more defensive than resolution stage).
+
+{character_arcs_str}
 
 ========================
 CHARACTERS' HIDDEN THOUGHTS (INTERNAL STATES FOR THIS SCENE)
@@ -254,6 +278,11 @@ YOUR TASK & CRITICAL RULES
    3. What emotional state are they in?
    4. What memories affect this scene?
    5. What would this specific character realistically say?
+   6. How does their current Character Arc Stage and Progress affect their behavior? A character in 'beginning' stage (low progress) remains defensive and closed-off, while a character in 'middle' or 'climax' (higher progress) starts to show vulnerability.
+9. A BALANCE OF DIALOGUE AND NARRATION (CRITICAL):
+   - The generated scene MUST contain a rich balance of both spoken dialogue (formatted clearly with character names, e.g., 'CharacterName: "..."') and cinematic visual action description/narration.
+   - Do NOT write only narration/prose or only dialogue. The characters must actively speak to each other.
+
 
 **OUTPUT FORMAT:**
 You must return your response as a valid JSON object with EXACTLY two keys:
@@ -315,30 +344,78 @@ Example JSON:
         )
         response_text = completion.choices[0].message.content
     
-    cleaned_text = response_text.strip()
-    if cleaned_text.startswith("```json"):
-        cleaned_text = cleaned_text[7:]
-    elif cleaned_text.startswith("```"):
-        cleaned_text = cleaned_text[3:]
-    if cleaned_text.endswith("```"):
-        cleaned_text = cleaned_text[:-3]
-    cleaned_text = cleaned_text.strip()
+    print("\n" + "="*50)
+    print("RAW RESPONSE FROM GROQ:")
+    print(response_text)
+    print("="*50 + "\n")
+    
+    # Robust JSON parsing function with fallbacks
+    def safe_parse_json(text):
+        cleaned = text.strip()
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
+            
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
 
-    try:
-        response_data = json.loads(cleaned_text)
-    except Exception:
-        response_data = None
+        try:
+            start = cleaned.find('{')
+            end = cleaned.rfind('}')
+            if start != -1 and end != -1:
+                return json.loads(cleaned[start:end+1])
+        except Exception:
+            pass
+        return None
+
+    response_data = safe_parse_json(response_text)
+    generated_scene = ""
+    updated_emotions = None
 
     # Handle cases where Groq returns a list, string, or malformed data
     if isinstance(response_data, dict):
-        generated_scene = response_data.get("scene", response_text)
+        generated_scene = response_data.get("scene", "")
         updated_emotions = response_data.get("updated_emotions", None)
     elif isinstance(response_data, list) and len(response_data) > 0 and isinstance(response_data[0], dict):
-        generated_scene = response_data[0].get("scene", response_text)
+        generated_scene = response_data[0].get("scene", "")
         updated_emotions = response_data[0].get("updated_emotions", None)
-    else:
+
+    # If parsing failed or couldn't get a valid scene string, manually extract to prevent leak
+    if not generated_scene:
+        import re
+        # Check if the response contains json keys and extract manually
+        if '"scene"\s*:' in response_text or "'scene'\s*:" in response_text or "updated_emotions" in response_text:
+            try:
+                # Extract content inside "scene": "..."
+                scene_match = re.search(r'"scene"\s*:\s*"(.*?)(?<!\\)"', response_text, re.DOTALL)
+                if scene_match:
+                    generated_scene = scene_match.group(1).replace('\\"', '"').replace('\\n', '\n').replace('\\t', '\t')
+                else:
+                    # Split at updated_emotions to isolate the scene block
+                    parts = re.split(r'"updated_emotions"\s*:', response_text, flags=re.IGNORECASE)
+                    if len(parts) > 0:
+                        scene_part = parts[0]
+                        # Remove json wrappers
+                        scene_part = re.sub(r'^\s*\{\s*"scene"\s*:\s*"?', '', scene_part, flags=re.IGNORECASE)
+                        scene_part = re.sub(r'"?\s*,\s*$', '', scene_part)
+                        generated_scene = scene_part.strip().replace('\\"', '"').replace('\\n', '\n').replace('\\t', '\t')
+            except Exception as e:
+                print("Failed to manually extract scene text:", e)
+
+    # Final fallback if all extraction methods fail
+    if not generated_scene:
         generated_scene = response_text
-        updated_emotions = None
 
     scene_for_analysis = truncate_for_analysis(generated_scene)
 
@@ -388,6 +465,21 @@ Example JSON:
     except Exception as e:
         print(f"Error updating relationships: {e}")
 
+    # --- Character Arc Updates (non-blocking) ---
+    try:
+        from character_engine.arc_analyzer import analyze_arc_progress
+        from data.character_arcs import update_character_arc, get_character_arc
+        for char in characters:
+            char_name = char.get("name")
+            if char_name:
+                arc_update = analyze_arc_progress(scene_for_analysis, char)
+                arc = get_character_arc(char_name)
+                scene_num = len(arc.get("history", [])) + 1
+                scene_title = f"Scene {scene_num}"
+                update_character_arc(char_name, arc_update, scene_title, scene_num)
+    except Exception as e:
+        print(f"Error updating character arcs: {e}")
+
     # --- Director engine (non-blocking) ---
     time.sleep(POST_SCENE_LLM_DELAY_SEC)
     direction_data = None
@@ -396,34 +488,76 @@ Example JSON:
     except Exception as e:
         print(f"Error generating direction: {e}")
 
-    # --- Image generation (non-blocking) ---
-    image_filenames = []
-    try:
-        if direction_data and characters:
-            for i in range(3):
-                try:
-                    visual_prompt = build_visual_prompt(
-                        generated_scene,
-                        direction_data,
-                        characters,
-                        frame_index=i
-                    )
-                    img_file = generate_scene_image(visual_prompt)
-                    if img_file:
-                        image_filenames.append(img_file)
-                except Exception as img_err:
-                    print(f"Error generating image {i+1}: {img_err}")
-    except Exception as e:
-        print(f"Error in image generation block: {e}")
+    # NOTE: Image generation has been moved to a separate on-demand endpoint /generate-scene-images
 
     return {
         "scene": generated_scene,
         "updated_emotions": updated_emotions,
         "direction": direction_data,
-        "image": image_filenames[0] if image_filenames else None,
-        "images": image_filenames,
+        "image": None,
+        "images": [],
         "hidden_thoughts": hidden_thoughts_dict,
         "story_bible": story_bible,
+    }
+
+class ImageGenerationRequest(BaseModel):
+    scene_text: str
+    direction: Optional[Dict[str, Any]] = None
+    characters: Optional[List[Dict[str, Any]]] = []
+    num_frames: Optional[int] = 3
+
+@app.post("/generate-scene-images")
+def generate_scene_images(request_data: ImageGenerationRequest):
+    """Standalone endpoint to generate storyboard images for an existing scene."""
+    scene_text = request_data.scene_text
+    direction_data = request_data.direction
+    characters = request_data.characters or []
+    num_frames = min(request_data.num_frames or 3, 5)
+
+    if not scene_text:
+        return {"images": [], "error": "No scene text provided"}
+
+    # If no direction data provided, generate it on the fly
+    if not direction_data:
+        try:
+            direction_data = generate_direction(scene_text[:2000])
+        except Exception as e:
+            print(f"Error generating direction for images: {e}")
+            direction_data = {
+                "camera": "wide shot",
+                "lighting": "natural",
+                "weather": "clear",
+                "mood": "neutral",
+                "color_palette": "muted tones",
+                "scene_intensity": 50
+            }
+
+    image_filenames = []
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+
+        def gen_frame(i):
+            try:
+                visual_prompt = build_visual_prompt(
+                    scene_text,
+                    direction_data,
+                    characters,
+                    frame_index=i
+                )
+                return generate_scene_image(visual_prompt)
+            except Exception as img_err:
+                print(f"Error generating image {i+1}: {img_err}")
+                return None
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            results = list(executor.map(gen_frame, range(num_frames)))
+            image_filenames = [img for img in results if img]
+    except Exception as e:
+        print(f"Error in image generation: {e}")
+
+    return {
+        "images": image_filenames,
+        "image": image_filenames[0] if image_filenames else None,
     }
 
 @app.delete("/generated_images/{filename}")
@@ -539,3 +673,8 @@ Example JSON output format:
             "summary": f"{char_name} is a character in the universe.",
             "evolution": []
         }
+
+@app.get("/character-arc")
+def get_character_arc_endpoint(character_name: str):
+    from data.character_arcs import get_character_arc
+    return get_character_arc(character_name)

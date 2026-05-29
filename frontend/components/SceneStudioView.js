@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import { useToast } from "./ToastProvider";
-import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, ImagePlus } from "lucide-react";
 import { EMOTION_KEYS, parseEmotionDisplayEntry } from "../lib/emotionUtils";
 
 // Helper: safely convert any value to a renderable string (prevents React "Objects are not valid as a React child" crashes)
@@ -21,7 +21,7 @@ const safeStr = (val, fallback = "") => {
 };
 
 export default function SceneStudioView({ activeScene, onSelectScene }) {
-  const { activeProject, characters: rawCharacters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
+  const { activeProject, characters: rawCharacters, scenes, generateScene, regenerateScene, updateScene, isGenerating, generateSceneImages } = useStore();
   const { toast, confirmAction } = useToast();
 
   // Sanitize characters to ensure no nested objects leak into JSX renders
@@ -42,6 +42,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
   const [selectedCharIds, setSelectedCharIds] = useState([]);
   const [generatedText, setGeneratedText] = useState("");
   const [activeFrameIndex, setActiveFrameIndex] = useState(null);
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
 
   // Branching & Decision State
   const [parentId, setParentId] = useState("");
@@ -760,9 +761,40 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                 </div>
               )}              {/* Generated Widescreen Scene Frames / Storyboard */}
               <div className="space-y-3.5 pt-4">
-                <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-550 font-bold">
-                  Generated Scene Frames (Storyboards)
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-550 font-bold">
+                    Scene Storyboard Frames
+                  </h4>
+                  {activeScene && activeScene.generated_text && (
+                    <button
+                      onClick={async () => {
+                        if (isGeneratingImages) return;
+                        setIsGeneratingImages(true);
+                        try {
+                          const updated = await generateSceneImages(activeScene.id);
+                          if (updated) {
+                            onSelectScene(updated);
+                            toast({ type: "success", title: "Storyboard ready", message: "3 cinematic frames generated." });
+                          } else {
+                            toast({ type: "error", title: "Image generation failed", message: "Check AI backend connection." });
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          toast({ type: "error", title: "Error", message: "Failed to generate images." });
+                        }
+                        setIsGeneratingImages(false);
+                      }}
+                      disabled={isGeneratingImages}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 disabled:from-zinc-800 disabled:to-zinc-800 disabled:text-zinc-500 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95 shadow-md shadow-purple-500/15"
+                    >
+                      {isGeneratingImages ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Generating...</>
+                      ) : (
+                        <><ImagePlus className="w-3 h-3" /> {activeScene.images && activeScene.images.length > 0 ? "Regenerate Images" : "Generate Storyboard"}</>
+                      )}
+                    </button>
+                  )}
+                </div>
                 {activeScene && (activeScene.images && activeScene.images.length > 0) ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {activeScene.images.map((img, idx) => (
@@ -799,25 +831,12 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                     </span>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
-                      <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
-                        Frame 01: Establishing Shot
-                      </span>
-                    </div>
-                    <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
-                      <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
-                        Frame 02: Character Focus
-                      </span>
-                    </div>
-                    <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
-                      <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
-                        Frame 03: Detail Frame
-                      </span>
-                    </div>
+                  <div className="flex flex-col items-center justify-center py-12 border border-dashed border-zinc-850 rounded-2xl bg-zinc-950/30">
+                    <ImagePlus className="w-8 h-8 text-zinc-700 mb-3" />
+                    <p className="text-xs font-semibold text-zinc-500">No storyboard frames yet</p>
+                    <p className="text-[10px] text-zinc-650 mt-1 max-w-[280px] text-center">
+                      Click "Generate Storyboard" above to create 3 cinematic scene frames from the screenplay.
+                    </p>
                   </div>
                 )}
               </div>
