@@ -69,25 +69,15 @@ export default function GalleryView() {
     });
   };
 
-  // Download image helper using Blob to bypass browser inline rendering
-  const handleDownload = async (filename, title, index) => {
+  // Download image helper using Next.js proxy endpoint to bypass browser CORS blocks
+  const handleDownload = (filename, title, index) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/generated_images/${filename}`);
-      if (!response.ok) throw new Error("Network response was not ok");
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      
-      // Clean up title for filename
-      const cleanTitle = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      link.download = `${cleanTitle}_frame_${index + 1}.png`;
-      
+      link.href = `/api/images/${filename}?download=true&title=${encodeURIComponent(title || "image")}`;
+      link.style.display = "none";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
       
       setMessage({ text: "Download initiated successfully!", type: "success" });
     } catch (error) {
@@ -226,7 +216,7 @@ export default function GalleryView() {
                       >
                         {/* Widescreen Image */}
                         <img 
-                          src={`http://127.0.0.1:8000/generated_images/${img}`}
+                          src={`/api/images/${img}`}
                           alt={`Storyboard frame for ${scene.title}`}
                           onClick={() => setActiveImage({
                             sceneId: scene.id,
@@ -304,7 +294,7 @@ export default function GalleryView() {
           {/* Zoomed Widescreen Display Container */}
           <div className="max-w-5xl w-full aspect-video rounded-3xl overflow-hidden border border-zinc-800/85 shadow-2xl relative bg-zinc-950 flex flex-col justify-end animate-scale-in">
             <img
-              src={`http://127.0.0.1:8000/generated_images/${activeImage.filename}`}
+              src={`/api/images/${activeImage.filename}`}
               alt={`Zoomed storyboard frame ${activeImage.index + 1}`}
               className="w-full h-full object-cover"
             />
