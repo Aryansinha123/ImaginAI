@@ -19,6 +19,7 @@ from image_generator import generate_scene_image
 from visual_prompt_engine import (
     build_visual_prompt
 )
+from prompt_builders.character_brain import build_character_brain
 from pydantic import BaseModel
 from typing import List, Dict, Optional, Any
 
@@ -99,8 +100,8 @@ def generate_scene(request_data: SceneRequest):
         )
     
     # Truncate past_memories to prevent exceeding Groq TPM (tokens per minute) limit
-    if past_memories and len(past_memories) > 3000:
-        past_memories = past_memories[:3000] + "\n... [Truncated for brevity to fit rate limits]"
+    if past_memories and len(past_memories) > 2000:
+        past_memories = past_memories[:2000] + "\n... [Truncated for brevity to fit rate limits]"
     
     # Build/fetch directional relationships between all pairs of characters in the scene
     relationships = data.get("relationships", {})
@@ -121,26 +122,10 @@ def generate_scene(request_data: SceneRequest):
             relationships_str += f"- {key} (how the first character feels towards the second): Trust: {ems.get('trust')}%, Attachment: {ems.get('attachment')}%, Awkwardness: {ems.get('awkwardness')}%, Resentment: {ems.get('resentment')}%, Comfort: {ems.get('comfort')}%\n"
         relationships_str += "\n"
 
-    characters_info = ""
-    for idx, char in enumerate(characters):
-        characters_info += f"""
-========================
-CHARACTER #{idx + 1}: {char.get('name', 'Unnamed')}
-========================
-Name: {char.get('name', 'Unnamed')}
-Age: {char.get('age', 'N/A')}
-Gender: {char.get('gender', 'N/A')}
-Height: {char.get('height', 'N/A')}
-Hair/Hairstyle: {char.get('hair', 'N/A')}
-Eyes/Eye Color: {char.get('eyes', 'N/A')}
-Skin Tone: {char.get('skinTone', 'N/A')}
-Clothing Style: {char.get('clothing', 'N/A')}
-Personality Traits: {char.get('personality', 'N/A')}
-Emotional Traits: {char.get('emotionalTraits', 'N/A')}
-Speaking Style: {char.get('speakingStyle', 'N/A')}
-Relationship Type: {char.get('relationship', 'N/A')}
-Voice Style: {char.get('voice', 'N/A')}
-"""
+    character_brains_list = []
+    for char in characters:
+        character_brains_list.append(build_character_brain(char))
+    character_brain_str = "\n".join(character_brains_list)
 
     system_prompt = f"""
 You are EchoVerse, a modern, cinematic storytelling AI.
@@ -151,7 +136,9 @@ ASSIGNED CHARACTERS (CRITICAL)
 ========================
 You must ONLY use the characters listed below. NEVER introduce new characters automatically.
 
-{characters_info}
+Assigned Character Brain:
+
+{character_brain_str}
 
 ========================
 SCENE PARAMETERS
@@ -189,6 +176,12 @@ YOUR TASK & CRITICAL RULES
      - Characters can get closer (attachment increases) but simultaneously feel more vulnerable or awkward (awkwardness might also increase).
      - Emotion updates must be asymmetric. If character A feels a surge of trust or attachment, character B might remain guarded, feel pressured, or even feel increased resentment. 
      - Do not mirror emotions perfectly between the characters. Each direction of the relationship key must be updated independently based on how that specific character perceived the interaction.
+8. Before generating dialogue, consider:
+   1. What does this character WANT?
+   2. What does this character FEAR?
+   3. What emotional state are they in?
+   4. What memories affect this scene?
+   5. What would this specific character realistically say?
 
 **OUTPUT FORMAT:**
 You must return your response as a valid JSON object with EXACTLY two keys:
@@ -236,7 +229,7 @@ Example JSON:
             model="llama-3.1-8b-instant",
             messages=messages,
             response_format={"type": "json_object"},
-            max_tokens=4096
+            max_tokens=1500
         )
         response_text = completion.choices[0].message.content
     except Exception as json_err:
@@ -244,7 +237,7 @@ Example JSON:
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
-            max_tokens=4096
+            max_tokens=1500
         )
         response_text = completion.choices[0].message.content
     
@@ -312,21 +305,29 @@ Example JSON:
         print(f"Error generating direction: {e}")
 
     # --- Image generation (non-blocking) ---
-    image_filename = None
+    image_filenames = []
     try:
         if direction_data and characters:
-            visual_prompt = build_visual_prompt(
-                generated_scene,
-                direction_data,
-                characters
-            )
-            image_filename = generate_scene_image(visual_prompt)
+            for i in range(3):
+                try:
+                    visual_prompt = build_visual_prompt(
+                        generated_scene,
+                        direction_data,
+                        characters,
+                        frame_index=i
+                    )
+                    img_file = generate_scene_image(visual_prompt)
+                    if img_file:
+                        image_filenames.append(img_file)
+                except Exception as img_err:
+                    print(f"Error generating image {i+1}: {img_err}")
     except Exception as e:
-        print(f"Error generating image: {e}")
+        print(f"Error in image generation block: {e}")
 
     return {
         "scene": generated_scene,
         "updated_emotions": updated_emotions,
         "direction": direction_data,
-        "image": image_filename
+        "image": image_filenames[0] if image_filenames else None,
+        "images": image_filenames
     }

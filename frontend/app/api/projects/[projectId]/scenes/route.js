@@ -45,6 +45,7 @@ export async function GET(req, { params }) {
       characterIds: s.characterIds || [],
       order: s.order !== undefined ? s.order : 0,
       created_at: s.created_at,
+      images: s.images || (s.image ? [s.image] : []),
       image: s.image,
       direction: s.direction
     }));
@@ -145,6 +146,7 @@ export async function POST(req, { params }) {
     let emotionDeltas = {};
     let directionData = null;
     let imageFilename = null;
+    let imageFilenames = [];
 
     if (!generatedText) {
       // Call stateless FastAPI completions backend
@@ -158,6 +160,7 @@ export async function POST(req, { params }) {
       generatedText = apiRes.data.scene;
       directionData = apiRes.data.direction;
       imageFilename = apiRes.data.image || null;
+      imageFilenames = apiRes.data.images || (apiRes.data.image ? [apiRes.data.image] : []);
       
       console.log("Python response:", apiRes.data);
 
@@ -262,6 +265,7 @@ export async function POST(req, { params }) {
       created_at: new Date().toISOString(),
       emotion_deltas: emotionDeltas || {},
       direction: directionData || null,
+      images: imageFilenames || [],
       image: imageFilename
     };
 
@@ -280,6 +284,7 @@ export async function POST(req, { params }) {
       created_at: newScene.created_at,
       emotion_deltas: emotionDeltas || {},
       direction: directionData || null,
+      images: newScene.images,
       image: newScene.image || null
     });
   } catch (error) {

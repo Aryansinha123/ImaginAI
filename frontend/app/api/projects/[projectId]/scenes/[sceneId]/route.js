@@ -36,6 +36,7 @@ export async function PATCH(req, { params }) {
     if (updateData.generated_text !== undefined) fieldsToUpdate.generated_text = updateData.generated_text;
     if (updateData.direction !== undefined) fieldsToUpdate.direction = updateData.direction || null;
     if (updateData.image !== undefined) fieldsToUpdate.image = updateData.image || null;
+    if (updateData.images !== undefined) fieldsToUpdate.images = updateData.images || [];
 
     const result = await db.collection("scenes").findOneAndUpdate(
       { _id: new ObjectId(sceneId), project_id: new ObjectId(projectId) },
@@ -59,6 +60,7 @@ export async function PATCH(req, { params }) {
       generated_text: result.generated_text,
       created_at: result.created_at,
       direction: result.direction || null,
+      images: result.images || (result.image ? [result.image] : []),
       image: result.image || null
     });
   } catch (error) {

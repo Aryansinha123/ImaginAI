@@ -357,6 +357,7 @@ export const useStore = create((set, get) => ({
       const generatedText = genRes.data.generated_text;
       const direction = genRes.data.direction;
       const image = genRes.data.image;
+      const images = genRes.data.images;
 
       await API.delete(`/projects/${activeProject.id}/scenes/${genRes.data.id}`);
 
@@ -367,7 +368,8 @@ export const useStore = create((set, get) => ({
         characterIds,
         generated_text: generatedText,
         direction,
-        image
+        image,
+        images
       });
 
       set((state) => ({

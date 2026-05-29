@@ -4,6 +4,68 @@ import { useState } from "react";
 import { useStore } from "../store/useStore";
 import { User, Plus, X, Heart, MessageCircle, Eye, Star } from "lucide-react";
 
+function TagInput({ label, tags, setTags, placeholder, examples }) {
+  const [input, setInput] = useState("");
+
+  const addTag = (text) => {
+    const trimmed = text.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
+    setInput("");
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addTag(input);
+    }
+  };
+
+  const removeTag = (indexToRemove) => {
+    setTags(tags.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  return (
+    <div className="space-y-1.5 text-left">
+      <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
+        {label}
+      </label>
+      <div className="flex flex-wrap gap-2 p-2 bg-zinc-900 border border-zinc-850 rounded-xl focus-within:border-purple-500/50 min-h-[42px] transition-colors">
+        {tags.map((tag, idx) => (
+          <span
+            key={idx}
+            className="flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-lg bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/25"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={() => removeTag(idx)}
+              className="text-purple-400 hover:text-purple-250 focus:outline-none transition-colors cursor-pointer"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={() => addTag(input)}
+          placeholder={tags.length === 0 ? placeholder : ""}
+          className="flex-1 min-w-[80px] bg-transparent text-white text-xs outline-none border-none py-0.5"
+        />
+      </div>
+      {examples && (
+        <span className="text-[9px] text-zinc-650 block">
+          Suggestions: {examples.join(", ")}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export default function CharactersView() {
   const { activeProject, characters, createCharacter, updateCharacter, deleteCharacter } = useStore();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -13,15 +75,28 @@ export default function CharactersView() {
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
+
+  // Appearance
   const [height, setHeight] = useState("");
   const [hair, setHair] = useState("");
   const [eyes, setEyes] = useState("");
   const [skinTone, setSkinTone] = useState("");
   const [clothing, setClothing] = useState("");
-  const [personality, setPersonality] = useState("");
-  const [emotionalTraits, setEmotionalTraits] = useState("");
-  const [speakingStyle, setSpeakingStyle] = useState("");
-  const [voice, setVoice] = useState("");
+
+  // Upgraded fields (lists)
+  const [coreTraits, setCoreTraits] = useState([]);
+  const [strengths, setStrengths] = useState([]);
+  const [flaws, setFlaws] = useState([]);
+  const [fears, setFears] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [values, setValues] = useState([]);
+
+  // Single fields
+  const [attachmentStyle, setAttachmentStyle] = useState("");
+  const [communicationStyle, setCommunicationStyle] = useState("");
+  const [voiceStyle, setVoiceStyle] = useState("");
+  const [relationshipType, setRelationshipType] = useState("");
+
   const [avatarUrl, setAvatarUrl] = useState("");
 
   const openAddMode = () => {
@@ -34,10 +109,16 @@ export default function CharactersView() {
     setEyes("");
     setSkinTone("");
     setClothing("");
-    setPersonality("");
-    setEmotionalTraits("");
-    setSpeakingStyle("");
-    setVoice("");
+    setCoreTraits([]);
+    setStrengths([]);
+    setFlaws([]);
+    setFears([]);
+    setGoals([]);
+    setValues([]);
+    setAttachmentStyle("");
+    setCommunicationStyle("");
+    setVoiceStyle("");
+    setRelationshipType("");
     setAvatarUrl("");
     setShowAddForm(true);
   };
@@ -47,15 +128,25 @@ export default function CharactersView() {
     setName(char.name || "");
     setAge(char.age || "");
     setGender(char.gender || "");
-    setHeight(char.height || "");
-    setHair(char.hair || "");
-    setEyes(char.eyes || "");
-    setSkinTone(char.skinTone || "");
-    setClothing(char.clothing || "");
-    setPersonality(char.personality || "");
-    setEmotionalTraits(char.emotionalTraits || "");
-    setSpeakingStyle(char.speakingStyle || "");
-    setVoice(char.voice || "");
+
+    const app = char.appearance || {};
+    setHeight(app.height || char.height || "");
+    setHair(app.hair || char.hair || "");
+    setEyes(app.eyes || char.eyes || "");
+    setSkinTone(app.skinTone || char.skinTone || "");
+    setClothing(app.clothing || char.clothing || "");
+
+    setCoreTraits(char.core_traits || (char.personality ? char.personality.split(",").map(t => t.trim()).filter(Boolean) : []));
+    setStrengths(char.strengths || []);
+    setFlaws(char.flaws || []);
+    setFears(char.fears || []);
+    setGoals(char.goals || []);
+    setValues(char.values || []);
+
+    setAttachmentStyle(char.attachment_style || "");
+    setCommunicationStyle(char.communication_style || char.speakingStyle || "");
+    setVoiceStyle(char.voice_style || char.voice || "");
+    setRelationshipType(char.relationship_type || char.relationship || "");
     setAvatarUrl(char.avatarUrl || "");
     setShowAddForm(true);
   };
@@ -81,15 +172,23 @@ export default function CharactersView() {
       name: name.trim(),
       age,
       gender,
-      height,
-      hair,
-      eyes,
-      skinTone,
-      clothing,
-      personality,
-      emotionalTraits,
-      speakingStyle,
-      voice,
+      appearance: {
+        height,
+        hair,
+        eyes,
+        skinTone,
+        clothing
+      },
+      core_traits: coreTraits,
+      strengths,
+      flaws,
+      fears,
+      goals,
+      values,
+      attachment_style: attachmentStyle,
+      communication_style: communicationStyle,
+      voice_style: voiceStyle,
+      relationship_type: relationshipType,
       avatarUrl: finalAvatar
     };
 
@@ -168,9 +267,9 @@ export default function CharactersView() {
                     {char.name}
                   </h3>
                   <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                    {char.relationship && (
+                    {(char.relationship_type || char.relationship) && (
                       <span className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 font-semibold border border-purple-500/20">
-                        {char.relationship}
+                        {char.relationship_type || char.relationship}
                       </span>
                     )}
                     {char.age && (
@@ -186,41 +285,79 @@ export default function CharactersView() {
                   </div>
                 </div>
 
-                {/* Emotional Traits / Speaking Summary */}
-                <div className="mt-6 border-t border-zinc-900/80 pt-4 space-y-3.5">
-                  {char.emotionalTraits && (
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 flex items-center gap-1 font-semibold">
-                        <Heart className="w-3 h-3 text-purple-400" />
-                        Emotional Traits
-                      </span>
-                      <p className="text-xs text-zinc-400 line-clamp-1 leading-relaxed">
-                        {char.emotionalTraits}
-                      </p>
+                {/* Character Brain Preview UI */}
+                <div className="mt-5 border-t border-zinc-900/80 pt-4 space-y-3 text-left">
+                  {char.core_traits && char.core_traits.length > 0 && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-550 block font-bold">Traits:</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {char.core_traits.map((t, idx) => (
+                          <span key={idx} className="text-xs text-zinc-300 flex items-center gap-1">
+                            <span className="text-purple-400 text-[10px]">✓</span> {t}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {char.speakingStyle && (
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 flex items-center gap-1 font-semibold">
-                        <MessageCircle className="w-3 h-3 text-blue-400" />
-                        Speaking Style
-                      </span>
-                      <p className="text-xs text-zinc-400 line-clamp-1 leading-relaxed">
-                        {char.speakingStyle}
-                      </p>
+                  {char.strengths && char.strengths.length > 0 && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-550 block font-bold">Strengths:</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {char.strengths.map((t, idx) => (
+                          <span key={idx} className="text-xs text-zinc-300 flex items-center gap-1">
+                            <span className="text-emerald-400 text-[10px]">✓</span> {t}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {char.personality && (
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 flex items-center gap-1 font-semibold">
-                        <Star className="w-3 h-3 text-emerald-400" />
-                        Personality
+                  {char.flaws && char.flaws.length > 0 && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-550 block font-bold">Flaws:</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {char.flaws.map((t, idx) => (
+                          <span key={idx} className="text-xs text-zinc-300 flex items-center gap-1">
+                            <span className="text-red-400 text-[10px]">✓</span> {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {char.fears && char.fears.length > 0 && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-550 block font-bold">Fear:</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {char.fears.map((t, idx) => (
+                          <span key={idx} className="text-xs text-zinc-300 flex items-center gap-1">
+                            <span className="text-pink-400 text-[10px]">✓</span> {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {char.goals && char.goals.length > 0 && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-550 block font-bold">Goal:</span>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                        {char.goals.map((t, idx) => (
+                          <span key={idx} className="text-xs text-zinc-300 flex items-center gap-1">
+                            <span className="text-blue-400 text-[10px]">✓</span> {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {char.attachment_style && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-550 block font-bold">Attachment:</span>
+                      <span className="text-xs text-zinc-300 flex items-center gap-1">
+                        <span className="text-yellow-500 text-[10px]">✓</span> {char.attachment_style}
                       </span>
-                      <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
-                        {char.personality}
-                      </p>
                     </div>
                   )}
                 </div>
@@ -337,10 +474,10 @@ export default function CharactersView() {
 
               {/* Physical Appearance */}
               <div className="space-y-4">
-                <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">
+                <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5 text-left">
                   Physical Appearance
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 text-left">
                   <div>
                     <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
                       Height
@@ -404,58 +541,125 @@ export default function CharactersView() {
                 </div>
               </div>
 
-              {/* Psychology & Voice */}
+              {/* Psychology & Brain */}
               <div className="space-y-4">
-                <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">
-                  Psychology, Voice & Relationships
+                <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5 text-left">
+                  Psychology & Brain
                 </h4>
-                <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <TagInput
+                      label="Core Traits"
+                      tags={coreTraits}
+                      setTags={setCoreTraits}
+                      placeholder="Add core traits (press Enter)..."
+                      examples={["introverted", "extroverted", "empathetic", "observant", "confident", "reserved"]}
+                    />
+                  </div>
+                  <div>
+                    <TagInput
+                      label="Strengths"
+                      tags={strengths}
+                      setTags={setStrengths}
+                      placeholder="Add strengths..."
+                      examples={["loyal", "patient", "hardworking", "supportive"]}
+                    />
+                  </div>
+                  <div>
+                    <TagInput
+                      label="Flaws"
+                      tags={flaws}
+                      setTags={setFlaws}
+                      placeholder="Add flaws..."
+                      examples={["stubborn", "overthinks", "jealous", "avoids conflict"]}
+                    />
+                  </div>
+                  <div>
+                    <TagInput
+                      label="Fears"
+                      tags={fears}
+                      setTags={setFears}
+                      placeholder="Add fears..."
+                      examples={["abandonment", "failure", "rejection", "loneliness"]}
+                    />
+                  </div>
+                  <div>
+                    <TagInput
+                      label="Goals"
+                      tags={goals}
+                      setTags={setGoals}
+                      placeholder="Add goals..."
+                      examples={["find love", "be successful", "help others", "gain independence"]}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <TagInput
+                      label="Values"
+                      tags={values}
+                      setTags={setValues}
+                      placeholder="Add values..."
+                      examples={["honesty", "family", "freedom", "ambition", "loyalty"]}
+                    />
+                  </div>
+                  <div className="text-left">
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
+                      Attachment Style
+                    </label>
+                    <select
+                      value={attachmentStyle}
+                      onChange={(e) => setAttachmentStyle(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
+                    >
+                      <option value="">Select attachment style...</option>
+                      <option value="Secure">Secure</option>
+                      <option value="Anxious">Anxious</option>
+                      <option value="Avoidant">Avoidant</option>
+                      <option value="Fearful Avoidant">Fearful Avoidant</option>
+                    </select>
+                  </div>
+                  <div className="text-left">
+                    <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
+                      Communication Style
+                    </label>
+                    <input
+                      type="text"
+                      value={communicationStyle}
+                      onChange={(e) => setCommunicationStyle(e.target.value)}
+                      placeholder="e.g. soft and indirect"
+                      className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
 
+              {/* Voice & Relationships */}
+              <div className="space-y-4">
+                <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5 text-left">
+                  Voice & Relationships
+                </h4>
+                <div className="grid grid-cols-2 gap-4 text-left">
                   <div>
                     <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
                       Voice / Vocal Style
                     </label>
                     <input
                       type="text"
-                      value={voice}
-                      onChange={(e) => setVoice(e.target.value)}
-                      placeholder="e.g. Soft-spoken, gravelly, quiet whisper"
+                      value={voiceStyle}
+                      onChange={(e) => setVoiceStyle(e.target.value)}
+                      placeholder="e.g. Soft-spoken, quiet whisper"
                       className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
                     />
                   </div>
                   <div>
                     <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
-                      Emotional Traits & continuity
+                      Relationship Type
                     </label>
                     <input
                       type="text"
-                      value={emotionalTraits}
-                      onChange={(e) => setEmotionalTraits(e.target.value)}
-                      placeholder="e.g. Holds a secret grudge, anxious under pressure"
+                      value={relationshipType}
+                      onChange={(e) => setRelationshipType(e.target.value)}
+                      placeholder="e.g. Partner, Rival, Mentor"
                       className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
-                      Speaking Style
-                    </label>
-                    <input
-                      type="text"
-                      value={speakingStyle}
-                      onChange={(e) => setSpeakingStyle(e.target.value)}
-                      placeholder="e.g. Short blunt sentences, speaks in metaphors"
-                      className="w-full px-4 py-2.5 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1">
-                      Personality Summary / Backstory
-                    </label>
-                    <textarea
-                      value={personality}
-                      onChange={(e) => setPersonality(e.target.value)}
-                      placeholder="Elena is a rogue network decker..."
-                      className="w-full h-24 px-4 py-3 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-sm resize-none scrollbar-thin"
                     />
                   </div>
                 </div>

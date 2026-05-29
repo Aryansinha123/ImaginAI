@@ -28,9 +28,10 @@ export async function PATCH(req, { params }) {
 
     const fieldsToUpdate = {};
     const allowedFields = [
-      "name", "age", "gender", "height", "hair", "eyes", "skinTone",
-      "clothing", "personality", "emotionalTraits", "speakingStyle",
-      "relationship", "voice", "avatarUrl"
+      "name", "age", "gender", "appearance",
+      "core_traits", "strengths", "flaws", "fears", "goals", "values",
+      "attachment_style", "communication_style", "voice_style", "relationship_type",
+      "avatarUrl"
     ];
 
     allowedFields.forEach((field) => {
@@ -54,19 +55,26 @@ export async function PATCH(req, { params }) {
       projectId: result.project_id.toString(),
       user_id: result.user_id.toString(),
       name: result.name,
-      age: result.age,
-      gender: result.gender,
-      height: result.height,
-      hair: result.hair,
-      eyes: result.eyes,
-      skinTone: result.skinTone,
-      clothing: result.clothing,
-      personality: result.personality,
-      emotionalTraits: result.emotionalTraits,
-      speakingStyle: result.speakingStyle,
-      relationship: result.relationship,
-      voice: result.voice,
-      avatarUrl: result.avatarUrl,
+      age: result.age || "",
+      gender: result.gender || "",
+      appearance: result.appearance || {
+        height: result.height || "",
+        hair: result.hair || "",
+        eyes: result.eyes || "",
+        skinTone: result.skinTone || "",
+        clothing: result.clothing || ""
+      },
+      core_traits: result.core_traits || [],
+      strengths: result.strengths || [],
+      flaws: result.flaws || [],
+      fears: result.fears || [],
+      goals: result.goals || [],
+      values: result.values || [],
+      attachment_style: result.attachment_style || "",
+      communication_style: result.communication_style || "",
+      voice_style: result.voice_style || "",
+      relationship_type: result.relationship_type || "",
+      avatarUrl: result.avatarUrl || "",
       created_at: result.created_at
     });
   } catch (error) {

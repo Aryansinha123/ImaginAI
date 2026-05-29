@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
-import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown } from "lucide-react";
+import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export default function SceneStudioView({ activeScene, onSelectScene }) {
   const { activeProject, characters, scenes, generateScene, regenerateScene, updateScene, isGenerating } = useStore();
@@ -13,6 +13,25 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
   const [tone, setTone] = useState("emotional");
   const [selectedCharIds, setSelectedCharIds] = useState([]);
   const [generatedText, setGeneratedText] = useState("");
+  const [activeFrameIndex, setActiveFrameIndex] = useState(null);
+
+  // Handle keyboard navigation for zoomed storyboard carousel
+  useEffect(() => {
+    if (activeFrameIndex === null) return;
+    
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setActiveFrameIndex(null);
+      } else if (e.key === "ArrowLeft") {
+        setActiveFrameIndex((prev) => (prev > 0 ? prev - 1 : 2));
+      } else if (e.key === "ArrowRight") {
+        setActiveFrameIndex((prev) => (prev < 2 ? prev + 1 : 0));
+      }
+    };
+    
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeFrameIndex]);
 
   // Sync state if activeScene is selected
   useEffect(() => {
@@ -423,15 +442,36 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                     })}
                   </div>
                 </div>
-              )}
-
-              {/* Generated Widescreen Scene Frames / Storyboard */}
+              )}              {/* Generated Widescreen Scene Frames / Storyboard */}
               <div className="space-y-3.5 pt-4">
-                <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold">
+                <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-550 font-bold">
                   Generated Scene Frames (Storyboards)
                 </h4>
-                {activeScene && activeScene.image ? (
-                  <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg">
+                {activeScene && (activeScene.images && activeScene.images.length > 0) ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {activeScene.images.map((img, idx) => (
+                      <div 
+                        key={idx} 
+                        onClick={() => setActiveFrameIndex(idx)}
+                        className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg cursor-pointer hover:border-purple-500/30 transition-all"
+                      >
+                        <img 
+                          src={`http://127.0.0.1:8000/generated_images/${img}`}
+                          alt={`Generated cinematic scene frame ${idx + 1}`}
+                          className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-75 pointer-events-none" />
+                        <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-350 font-bold">
+                          Frame 0{idx + 1}: Storyboard Frame
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : activeScene && activeScene.image ? (
+                  <div 
+                    onClick={() => setActiveFrameIndex(0)}
+                    className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg cursor-pointer hover:border-purple-500/30 transition-all"
+                  >
                     <img 
                       src={`http://127.0.0.1:8000/generated_images/${activeScene.image}`}
                       alt="Generated cinematic scene frame"
@@ -443,7 +483,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                     </span>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
                       <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
@@ -454,6 +494,12 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
                       <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
                         Frame 02: Character Focus
+                      </span>
+                    </div>
+                    <div className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
+                      <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-400">
+                        Frame 03: Detail Frame
                       </span>
                     </div>
                   </div>
@@ -471,6 +517,85 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
           )}
         </div>
       </div>
+
+      {/* Zoomed Storyboard Carousel Modal Overlay */}
+      {activeFrameIndex !== null && activeScene && (activeScene.images || activeScene.image) && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-6 select-none animate-fade-in">
+          {/* Close Button */}
+          <button
+            onClick={() => setActiveFrameIndex(null)}
+            className="absolute top-6 right-6 p-2.5 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-lg hover:scale-105 active:scale-95"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Previous Button (Carousel) */}
+          <button
+            onClick={() => {
+              const maxIdx = activeScene.images ? activeScene.images.length - 1 : 0;
+              setActiveFrameIndex((prev) => (prev > 0 ? prev - 1 : maxIdx));
+            }}
+            className="absolute left-6 p-3 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-450 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-lg hover:scale-105 active:scale-95 z-10"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+
+          {/* Zoomed Image Container */}
+          <div className="max-w-5xl w-full aspect-video rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl relative bg-zinc-950 flex items-center justify-center animate-scale-in">
+            <img
+              src={`http://127.0.0.1:8000/generated_images/${
+                activeScene.images && activeScene.images.length > 0 
+                  ? activeScene.images[activeFrameIndex] 
+                  : activeScene.image
+              }`}
+              alt={`Zoomed storyboard frame ${activeFrameIndex + 1}`}
+              className="w-full h-full object-cover"
+            />
+            {/* Slide Details Overlay */}
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent p-8 flex flex-col justify-end pt-24">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-purple-400 font-bold mb-1">
+                Scene Storyboard Viewer
+              </span>
+              <h4 className="text-lg font-bold text-white">
+                Frame 0{activeFrameIndex + 1}: {
+                  activeFrameIndex === 0 ? "Wide Establishing Shot" : 
+                  activeFrameIndex === 1 ? "Medium Interaction Shot" : 
+                  "Close-Up Reaction & Detail Shot"
+                }
+              </h4>
+              <p className="text-xs text-zinc-450 mt-1 max-w-3xl leading-relaxed">
+                {activeScene.prompt}
+              </p>
+            </div>
+          </div>
+
+          {/* Next Button (Carousel) */}
+          <button
+            onClick={() => {
+              const maxIdx = activeScene.images ? activeScene.images.length - 1 : 0;
+              setActiveFrameIndex((prev) => (prev < maxIdx ? prev + 1 : 0));
+            }}
+            className="absolute right-6 p-3 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-450 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-lg hover:scale-105 active:scale-95 z-10"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+
+          {/* Bullet Indicators */}
+          {activeScene.images && activeScene.images.length > 1 && (
+            <div className="absolute bottom-8 flex gap-2">
+              {activeScene.images.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveFrameIndex(idx)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${
+                    activeFrameIndex === idx ? "bg-purple-500 w-6" : "bg-zinc-700 hover:bg-zinc-550"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
