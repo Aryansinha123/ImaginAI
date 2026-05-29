@@ -38,6 +38,9 @@ export async function PATCH(req, { params }) {
     if (updateData.image !== undefined) fieldsToUpdate.image = updateData.image || null;
     if (updateData.images !== undefined) fieldsToUpdate.images = updateData.images || [];
     if (updateData.hidden_thoughts !== undefined) fieldsToUpdate.hidden_thoughts = updateData.hidden_thoughts || {};
+    if (updateData.parent_id !== undefined) fieldsToUpdate.parent_id = updateData.parent_id || null;
+    if (updateData.branch_id !== undefined) fieldsToUpdate.branch_id = updateData.branch_id || "main";
+    if (updateData.decision !== undefined) fieldsToUpdate.decision = updateData.decision || null;
 
     const result = await db.collection("scenes").findOneAndUpdate(
       { _id: new ObjectId(sceneId), project_id: new ObjectId(projectId) },
@@ -63,7 +66,10 @@ export async function PATCH(req, { params }) {
       direction: result.direction || null,
       images: result.images || (result.image ? [result.image] : []),
       image: result.image || null,
-      hidden_thoughts: result.hidden_thoughts || {}
+      hidden_thoughts: result.hidden_thoughts || {},
+      parent_id: result.parent_id || null,
+      branch_id: result.branch_id || "main",
+      decision: result.decision || null
     });
   } catch (error) {
     console.error("Update Scene Error:", error);

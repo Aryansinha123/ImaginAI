@@ -304,13 +304,16 @@ export const useStore = create((set, get) => ({
 
   duplicateScene: async (projectId, scene) => {
     try {
-      const { title, prompt, tone, characterIds, generated_text } = scene;
+      const { title, prompt, tone, characterIds, generated_text, parent_id, branch_id, decision } = scene;
       const res = await API.post(`/projects/${projectId}/scenes`, {
         title: `${title} (Copy)`,
         scene: prompt,
         tone,
         characterIds,
-        generated_text
+        generated_text,
+        parent_id,
+        branch_id,
+        decision
       });
       set((state) => ({
         scenes: [...state.scenes, res.data].sort((a, b) => a.order - b.order)
@@ -320,7 +323,7 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  generateScene: async (scenePrompt, characterIds, title, tone) => {
+  generateScene: async (scenePrompt, characterIds, title, tone, parent_id = null, branch_id = "main", decision = null) => {
     const { activeProject } = get();
     if (!activeProject) return null;
     set({ isGenerating: true });
@@ -329,7 +332,10 @@ export const useStore = create((set, get) => ({
         scene: scenePrompt,
         characterIds,
         title,
-        tone: tone || "neutral"
+        tone: tone || "neutral",
+        parent_id,
+        branch_id,
+        decision
       });
       set((state) => ({
         scenes: [...state.scenes, res.data].sort((a, b) => a.order - b.order),
@@ -344,15 +350,23 @@ export const useStore = create((set, get) => ({
   },
 
   regenerateScene: async (sceneId, scenePrompt, characterIds, title, tone) => {
-    const { activeProject } = get();
+    const { activeProject, scenes } = get();
     if (!activeProject) return null;
+    const originalScene = scenes.find((s) => s.id === sceneId);
+    const parent_id = originalScene ? originalScene.parent_id : null;
+    const branch_id = originalScene ? originalScene.branch_id : "main";
+    const decision = originalScene ? originalScene.decision : null;
+
     set({ isGenerating: true });
     try {
       const genRes = await API.post(`/projects/${activeProject.id}/scenes`, {
         scene: scenePrompt,
         characterIds,
         title,
-        tone: tone || "neutral"
+        tone: tone || "neutral",
+        parent_id,
+        branch_id,
+        decision
       });
       const generatedText = genRes.data.generated_text;
       const direction = genRes.data.direction;
@@ -371,7 +385,10 @@ export const useStore = create((set, get) => ({
         direction,
         image,
         images,
-        hidden_thoughts
+        hidden_thoughts,
+        parent_id,
+        branch_id,
+        decision
       });
 
       set((state) => ({

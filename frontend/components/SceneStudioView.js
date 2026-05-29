@@ -15,6 +15,14 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
   const [generatedText, setGeneratedText] = useState("");
   const [activeFrameIndex, setActiveFrameIndex] = useState(null);
 
+  // Branching & Decision State
+  const [parentId, setParentId] = useState("");
+  const [branchId, setBranchId] = useState("main");
+  const [hasDecision, setHasDecision] = useState(false);
+  const [decisionQuestion, setDecisionQuestion] = useState("");
+  const [decisionChoices, setDecisionChoices] = useState([]);
+  const [choiceInput, setChoiceInput] = useState("");
+
   // Handle keyboard navigation for zoomed storyboard carousel
   useEffect(() => {
     if (activeFrameIndex === null) return;
@@ -41,12 +49,32 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
       setTone(activeScene.tone || "emotional");
       setSelectedCharIds(activeScene.characterIds || []);
       setGeneratedText(activeScene.generated_text || "");
+      setParentId(activeScene.parent_id || "");
+      setBranchId(activeScene.branch_id || "main");
+      setHasDecision(!!activeScene.decision);
+      setDecisionQuestion(activeScene.decision?.question || "");
+      setDecisionChoices(activeScene.decision?.choices || []);
+      setChoiceInput("");
     } else {
-      setTitle("");
-      setPrompt("");
+      const draftParent = typeof window !== 'undefined' ? localStorage.getItem("imaginai_draft_parent") : null;
+      const draftBranch = typeof window !== 'undefined' ? (localStorage.getItem("imaginai_draft_branch") || "branch_new") : "branch_new";
+
+      setParentId(draftParent || "");
+      setBranchId(draftBranch);
+      setTitle(draftParent ? "Branched Reality" : "");
+      setPrompt(draftParent ? "Based on previous events... " : "");
       setTone("emotional");
       setSelectedCharIds([]);
       setGeneratedText("");
+      setHasDecision(false);
+      setDecisionQuestion("");
+      setDecisionChoices([]);
+      setChoiceInput("");
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem("imaginai_draft_parent");
+        localStorage.removeItem("imaginai_draft_branch");
+      }
     }
   }, [activeScene]);
 
@@ -59,6 +87,10 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
   const handleGenerate = async (e) => {
     e.preventDefault();
     if (!title.trim() || !prompt.trim() || isGenerating) return;
+
+    const decisionObj = hasDecision && decisionQuestion.trim() && decisionChoices.length > 0
+      ? { question: decisionQuestion.trim(), choices: decisionChoices }
+      : null;
 
     if (activeScene) {
       // Regenerating/Updating active scene
@@ -74,7 +106,15 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
       }
     } else {
       // Create new scene
-      const created = await generateScene(prompt.trim(), selectedCharIds, title.trim(), tone);
+      const created = await generateScene(
+        prompt.trim(),
+        selectedCharIds,
+        title.trim(),
+        tone,
+        parentId || null,
+        branchId || "main",
+        decisionObj
+      );
       if (created) {
         onSelectScene(created);
       }
@@ -83,13 +123,20 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
 
   const saveMetadataOnly = async () => {
     if (!activeScene || !title.trim()) return;
+    const decisionObj = hasDecision && decisionQuestion.trim() && decisionChoices.length > 0
+      ? { question: decisionQuestion.trim(), choices: decisionChoices }
+      : null;
+
     await updateScene(activeProject.id, activeScene.id, {
       title: title.trim(),
       prompt: prompt.trim(),
       tone,
-      characterIds: selectedCharIds
+      characterIds: selectedCharIds,
+      parent_id: parentId || null,
+      branch_id: branchId || "main",
+      decision: decisionObj
     });
-    alert("Scene metadata saved successfully!");
+    alert("Scene details saved successfully!");
   };
 
   const tones = ["romantic", "awkward", "tense", "nostalgic", "emotional", "melancholic", "suspenseful"];
@@ -174,6 +221,48 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
             />
           </div>
 
+          {/* Branching Setup */}
+          <div className="grid grid-cols-2 gap-4 bg-zinc-950/20 border border-zinc-850/50 p-4 rounded-2xl">
+            <div>
+              <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-550 block mb-1.5 font-semibold">
+                Branch From (Parent)
+              </label>
+              <select
+                value={parentId}
+                onChange={(e) => {
+                  setParentId(e.target.value);
+                  if (!e.target.value) {
+                    setBranchId("main");
+                  }
+                }}
+                disabled={isGenerating}
+                className="w-full px-3 py-2 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-xs cursor-pointer"
+              >
+                <option value="">None (Root Scene / Main)</option>
+                {scenes
+                  .filter((s) => s.id !== (activeScene ? activeScene.id : null))
+                  .map((s, idx) => (
+                    <option key={s.id} value={s.id}>
+                      Scene {idx + 1}: {s.title}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-550 block mb-1.5 font-semibold">
+                Reality Label / Branch Name
+              </label>
+              <input
+                type="text"
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+                disabled={isGenerating || !parentId}
+                placeholder="e.g. Confess, Stay Silent"
+                className="w-full px-3 py-2 bg-zinc-900 text-white border border-zinc-850 focus:border-purple-500/50 outline-none rounded-xl text-xs disabled:opacity-40 disabled:pointer-events-none"
+              />
+            </div>
+          </div>
+
           {/* Emotional Tone Selector */}
           <div>
             <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-1.5 font-semibold">
@@ -250,6 +339,96 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
             />
           </div>
 
+          {/* Decision Point Setup */}
+          <div className="bg-zinc-950/20 border border-zinc-850/50 p-5 rounded-3xl space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-bold flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5 text-purple-400" />
+                Add Narrative Decision Point
+              </label>
+              <input
+                type="checkbox"
+                checked={hasDecision}
+                onChange={(e) => setHasDecision(e.target.checked)}
+                disabled={isGenerating}
+                className="w-4 h-4 accent-purple-650 cursor-pointer"
+              />
+            </div>
+
+            {hasDecision && (
+              <div className="space-y-4 animate-fade-in">
+                <div>
+                  <label className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block mb-1 font-semibold">
+                    Decision Prompt Question
+                  </label>
+                  <input
+                    type="text"
+                    value={decisionQuestion}
+                    onChange={(e) => setDecisionQuestion(e.target.value)}
+                    disabled={isGenerating}
+                    placeholder="e.g. What does Ryan do next?"
+                    className="w-full px-3 py-2 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-xs"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[9px] font-mono uppercase tracking-wider text-zinc-550 block font-semibold">
+                    Timeline Choices
+                  </label>
+                  
+                  {decisionChoices.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {decisionChoices.map((choice, index) => (
+                        <div key={index} className="flex items-center gap-1 px-2.5 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-semibold text-zinc-300">
+                          <span>{choice}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDecisionChoices(prev => prev.filter((_, i) => i !== index))}
+                            className="text-zinc-500 hover:text-red-400 font-bold ml-1.5 cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={choiceInput}
+                      onChange={(e) => setChoiceInput(e.target.value)}
+                      disabled={isGenerating}
+                      placeholder="e.g. Confess"
+                      className="flex-1 px-3 py-2 bg-zinc-900 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-xl text-xs"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (choiceInput.trim() && !decisionChoices.includes(choiceInput.trim())) {
+                            setDecisionChoices(prev => [...prev, choiceInput.trim()]);
+                            setChoiceInput("");
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (choiceInput.trim() && !decisionChoices.includes(choiceInput.trim())) {
+                          setDecisionChoices(prev => [...prev, choiceInput.trim()]);
+                          setChoiceInput("");
+                        }
+                      }}
+                      className="px-3.5 py-2 bg-zinc-800 border border-zinc-750 text-zinc-300 hover:text-white rounded-xl text-xs font-bold cursor-pointer"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Action buttons */}
           <div className="flex gap-4 pt-2">
             <button
@@ -306,6 +485,61 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
               <div className="text-zinc-200 text-base leading-8 whitespace-pre-wrap font-serif bg-zinc-950/45 p-6 rounded-2xl shadow-inner border border-zinc-850 select-text selection:bg-purple-500/20">
                 {generatedText}
               </div>
+
+              {/* Decision Point Navigation */}
+              {activeScene && activeScene.decision && activeScene.decision.question && (
+                <div className="bg-gradient-to-r from-zinc-950/60 to-zinc-900/35 border border-zinc-850 p-6 rounded-3xl space-y-4 shadow-xl backdrop-blur-md relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-xl pointer-events-none" />
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-purple-400 font-bold border-b border-zinc-850 pb-2.5 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                    Interactive Decision Point
+                  </h4>
+                  <div className="space-y-4">
+                    <p className="text-sm font-bold text-white tracking-wide">
+                      {activeScene.decision.question}
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      {activeScene.decision.choices.map((choice, idx) => {
+                        const childScene = scenes.find(
+                          (s) => s.parent_id === activeScene.id && s.branch_id === choice
+                        );
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              if (childScene) {
+                                onSelectScene(childScene);
+                              } else {
+                                if (
+                                  confirm(
+                                    `No scene exists for the choice "${choice}". Would you like to branch a new reality from here?`
+                                  )
+                                ) {
+                                  onSelectScene(null);
+                                  setParentId(activeScene.id);
+                                  setBranchId(choice);
+                                  setTitle(`${choice} Reality`);
+                                  setPrompt(`Based on choice: ${choice}... `);
+                                }
+                              }
+                            }}
+                            className={`px-4.5 py-2.5 text-xs font-bold rounded-xl transition-all duration-350 cursor-pointer border flex items-center gap-2 active:scale-[0.98] ${
+                              childScene
+                                ? "bg-purple-500/10 border-purple-500/35 text-purple-400 hover:bg-purple-650 hover:text-white hover:border-purple-600 hover:shadow-lg hover:shadow-purple-500/15"
+                                : "bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 hover:border-zinc-700"
+                            }`}
+                          >
+                            <span>{choice}</span>
+                            <span className="opacity-60 text-[10px]">
+                              {childScene ? "➔" : "+"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Characters' Hidden Thoughts (Internal Subtext) */}
               {activeScene && activeScene.hidden_thoughts && Object.keys(activeScene.hidden_thoughts).length > 0 && (

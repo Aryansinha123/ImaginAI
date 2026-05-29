@@ -34,8 +34,34 @@ const CharacterNode = ({ data }) => {
   );
 };
 
+const getAccumulatedEmotionsClient = (activeSceneId, scenes) => {
+  const emotions = {};
+  const resolvedKeys = new Set();
+  let currentId = activeSceneId;
+
+  while (currentId) {
+    const sceneObj = scenes.find((s) => s.id === currentId);
+    if (!sceneObj) break;
+
+    if (sceneObj.emotion_deltas) {
+      for (const [key, deltas] of Object.entries(sceneObj.emotion_deltas)) {
+        if (!resolvedKeys.has(key)) {
+          const values = {};
+          for (const [emName, emVal] of Object.entries(deltas)) {
+            values[emName] = typeof emVal === 'number' ? emVal : (emVal.new !== undefined ? emVal.new : emVal);
+          }
+          emotions[key] = values;
+          resolvedKeys.add(key);
+        }
+      }
+    }
+    currentId = sceneObj.parent_id;
+  }
+  return emotions;
+};
+
 export default function RelationshipCanvasView() {
-  const { activeProject, characters, canvasNodes, canvasEdges, saveCanvasState } = useStore();
+  const { activeProject, characters, canvasNodes, canvasEdges, saveCanvasState, activeScene, scenes } = useStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -76,8 +102,36 @@ export default function RelationshipCanvasView() {
     });
 
     setNodes([...updatedNodes, ...newNodes]);
-    setEdges(canvasEdges || []);
-  }, [characters, canvasNodes, canvasEdges, setNodes, setEdges]);
+
+    let updatedEdges = (canvasEdges || []).map((edge) => {
+      if (activeScene) {
+        const sourceChar = characters.find((c) => c.id === edge.source);
+        const targetChar = characters.find((c) => c.id === edge.target);
+        if (sourceChar && targetChar) {
+          const accumulated = getAccumulatedEmotionsClient(activeScene.id, scenes);
+          const keyST = `${sourceChar.name}->${targetChar.name}`;
+          const keyTS = `${targetChar.name}->${sourceChar.name}`;
+
+          let emotions = edge.emotions ? { ...edge.emotions } : {
+            source_to_target: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 },
+            target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
+          };
+
+          if (accumulated[keyST]) {
+            emotions.source_to_target = { ...emotions.source_to_target, ...accumulated[keyST] };
+          }
+          if (accumulated[keyTS]) {
+            emotions.target_to_source = { ...emotions.target_to_source, ...accumulated[keyTS] };
+          }
+
+          return { ...edge, emotions };
+        }
+      }
+      return edge;
+    });
+
+    setEdges(updatedEdges);
+  }, [characters, canvasNodes, canvasEdges, activeScene, scenes, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, label: "Connected", animated: true, style: { stroke: '#a855f7', strokeWidth: 2 } }, eds)),
