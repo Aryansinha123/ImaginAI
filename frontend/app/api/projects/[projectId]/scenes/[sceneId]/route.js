@@ -37,11 +37,14 @@ export async function PATCH(req, { params }) {
     if (updateData.direction !== undefined) fieldsToUpdate.direction = updateData.direction || null;
     if (updateData.image !== undefined) fieldsToUpdate.image = updateData.image || null;
     if (updateData.images !== undefined) fieldsToUpdate.images = updateData.images || [];
+    if (updateData.clips !== undefined) fieldsToUpdate.clips = updateData.clips || [];
     if (updateData.hidden_thoughts !== undefined) fieldsToUpdate.hidden_thoughts = updateData.hidden_thoughts || {};
     if (updateData.parent_id !== undefined) fieldsToUpdate.parent_id = updateData.parent_id || null;
     if (updateData.branch_id !== undefined) fieldsToUpdate.branch_id = updateData.branch_id || "main";
     if (updateData.decision !== undefined) fieldsToUpdate.decision = updateData.decision || null;
     if (updateData.emotion_deltas !== undefined) fieldsToUpdate.emotion_deltas = updateData.emotion_deltas || {};
+    if (updateData.storyboard !== undefined) fieldsToUpdate.storyboard = updateData.storyboard || [];
+    if (updateData.storyboards !== undefined) fieldsToUpdate.storyboards = updateData.storyboards || [];
 
     const result = await db.collection("scenes").findOneAndUpdate(
       { _id: new ObjectId(sceneId), project_id: new ObjectId(projectId) },
@@ -127,10 +130,13 @@ export async function PATCH(req, { params }) {
       emotion_deltas: result.emotion_deltas || {},
       images: result.images || (result.image ? [result.image] : []),
       image: result.image || null,
+      clips: result.clips || [],
       hidden_thoughts: result.hidden_thoughts || {},
       parent_id: result.parent_id || null,
       branch_id: result.branch_id || "main",
-      decision: result.decision || null
+      decision: result.decision || null,
+      storyboard: result.storyboard || [],
+      storyboards: result.storyboards || []
     });
   } catch (error) {
     console.error("Update Scene Error:", error);

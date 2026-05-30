@@ -33,7 +33,7 @@ def _get_ffmpeg():
     )
 
 
-def generate_video_clip(image_path, output_filename=None):
+def generate_video_clip(image_path, output_filename=None, duration=10):
     """
     Generate a browser-compatible H.264 MP4 video from a single image using
     a Ken Burns zoom-pan effect via FFmpeg. Output is playable in all modern
@@ -56,16 +56,15 @@ def generate_video_clip(image_path, output_filename=None):
 
     ffmpeg = _get_ffmpeg()
 
-    duration = 4   # seconds
     fps = 24
     width, height = 1280, 720
-    total_frames = duration * fps  # 96 frames
+    total_frames = duration * fps
 
-    # Ken Burns: gentle zoom-in (1.0 → 1.12) centred on the frame
+    # Ken Burns: smooth gentle zoom-in (1.0 → 1.17) over the duration
     zoompan_filter = (
         f"scale=8000:-1,"
         f"zoompan="
-        f"z='min(zoom+0.0013,1.12)':"
+        f"z='min(zoom+0.0007,1.17)':"
         f"x='iw/2-(iw/zoom/2)':"
         f"y='ih/2-(ih/zoom/2)':"
         f"d={total_frames}:"
@@ -104,4 +103,76 @@ def generate_video_clip(image_path, output_filename=None):
         raise RuntimeError(f"FFmpeg failed with code {result.returncode}:\n{err}")
 
     print(f"[video_generator] Created: {save_path}")
+    return output_filename
+
+
+def generate_progressive_video_clip(image_paths, output_filename=None, duration=10):
+    """
+    Generate a 10-second browser-compatible H.264 MP4 video from exactly 3 consecutive
+    images representing character actions, using chained FFmpeg xfade transitions
+    (crossfades) at the 3s and 6s marks.
+    """
+    if len(image_paths) != 3:
+        raise ValueError("Must provide exactly 3 image paths for progressive clip generation")
+        
+    for p in image_paths:
+        if not os.path.exists(p):
+            raise FileNotFoundError(f"Image not found at {p}")
+
+    if output_filename is None:
+        base = os.path.splitext(os.path.basename(image_paths[0]))[0]
+        output_filename = f"{base}_prog.mp4"
+
+    output_dir = "generated_images"
+    os.makedirs(output_dir, exist_ok=True)
+    save_path = os.path.join(output_dir, output_filename)
+
+    # Remove stale file so FFmpeg writes fresh
+    if os.path.exists(save_path):
+        os.remove(save_path)
+
+    ffmpeg = _get_ffmpeg()
+    
+    # 3 images: scale to cover and center-crop to exactly 1280x720 first to prevent filter crashes
+    # and create borderless 16:9 cinematic clips. We display each image for 4 seconds, and apply 1-second crossfades.
+    # Total duration = 4s (img1) + 4s (img2) - 1s (xfade) + 4s (img3) - 1s (xfade) = 10s.
+    filter_complex = (
+        "[0:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[v0]; "
+        "[1:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[v1]; "
+        "[2:v]scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720[v2]; "
+        "[v0][v1]xfade=transition=fade:duration=1:offset=3[v01]; "
+        "[v01][v2]xfade=transition=fade:duration=1:offset=6,format=yuv420p"
+    )
+
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-loop", "1", "-t", "4", "-i", image_paths[0],
+        "-loop", "1", "-t", "4", "-i", image_paths[1],
+        "-loop", "1", "-t", "4", "-i", image_paths[2],
+        "-filter_complex", filter_complex,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        "-an",
+        save_path
+    ]
+
+    print(f"[video_generator] Running progressive FFmpeg: {' '.join(cmd)}")
+
+    result = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+    )
+
+    if result.returncode != 0:
+        err = result.stderr.decode("utf-8", errors="replace")
+        print(f"[video_generator] FFmpeg progressive stderr:\n{err}")
+        raise RuntimeError(f"FFmpeg failed with code {result.returncode}:\n{err}")
+
+    print(f"[video_generator] Created progressive video: {save_path}")
     return output_filename

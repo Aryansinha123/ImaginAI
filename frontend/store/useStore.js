@@ -16,6 +16,8 @@ export const useStore = create((set, get) => ({
   isGenerating: false,
   authError: null,
   authInitialized: false,
+  storyboard: null,
+  isGeneratingStoryboard: false,
 
   initAuth: async () => {
     if (typeof window !== "undefined") {
@@ -486,5 +488,167 @@ export const useStore = create((set, get) => ({
       console.error("Error generating scene clips:", err);
       return null;
     }
-  }
+  },
+
+  generateStoryboard: async (sceneText) => {
+    set({ isGeneratingStoryboard: true });
+    try {
+      const { generateStoryboard: apiGenerate } = await import("../lib/storyboardApi");
+      const data = await apiGenerate(sceneText);
+      set({ storyboard: data.shots || [], isGeneratingStoryboard: false });
+      return data.shots;
+    } catch (err) {
+      console.error("Error generating storyboard:", err);
+      set({ isGeneratingStoryboard: false });
+      return null;
+    }
+  },
+
+  generateShotImage: async (sceneId, storyboardId, shotNumber, shotDescription, cameraAngle, emotion) => {
+    const { activeProject, scenes, characters } = get();
+    if (!activeProject || !sceneId) return null;
+    
+    const isSandbox = sceneId === "custom_sandbox";
+    const scene = isSandbox ? null : scenes.find(s => s.id === sceneId);
+    if (!isSandbox && !scene) return null;
+    
+    try {
+      const axios = (await import("axios")).default;
+      const resolvedChars = isSandbox ? [] : characters.filter(c => scene.characterIds?.includes(c.id || c._id));
+      
+      const res = await axios.post("http://127.0.0.1:8000/generate-scene-images", {
+        scene_text: shotDescription,
+        direction: {
+          camera: cameraAngle || "wide",
+          mood: emotion || "neutral"
+        },
+        characters: resolvedChars.map(c => ({
+          name: c.name,
+          age: c.age,
+          gender: c.gender,
+          core_traits: c.core_traits,
+        })),
+        num_frames: 1
+      });
+      
+      const generatedImage = res.data.image || (res.data.images && res.data.images[0]);
+      if (!generatedImage) return null;
+      
+      if (isSandbox) {
+        // Update temporary sandbox storyboard state
+        const updatedStoryboard = (get().storyboard || []).map(shot => {
+          if (shot.shot_number === shotNumber) {
+            return { ...shot, image: generatedImage };
+          }
+          return shot;
+        });
+        set({ storyboard: updatedStoryboard });
+      } else {
+        // Find and update the specific storyboard inside the scene's storyboards array
+        const storyboards = scene.storyboards || [];
+        const updatedStoryboards = storyboards.map(sb => {
+          if (sb.id === storyboardId) {
+            const updatedShots = (sb.shots || []).map(shot => {
+              if (shot.shot_number === shotNumber) {
+                return { ...shot, image: generatedImage };
+              }
+              return shot;
+            });
+            return { ...sb, shots: updatedShots };
+          }
+          return sb;
+        });
+
+        // Mirror first storyboard to legacy field for compatibility
+        const updatedStoryboard = updatedStoryboards.length > 0 ? updatedStoryboards[0].shots : [];
+
+        // Also add the new generated image filename to the scene's images array
+        const currentImages = scene.images || [];
+        const updatedImages = currentImages.includes(generatedImage)
+          ? currentImages
+          : [...currentImages, generatedImage];
+
+        const patchData = {
+          storyboards: updatedStoryboards,
+          storyboard: updatedStoryboard,
+          images: updatedImages
+        };
+        if (!scene.image) {
+          patchData.image = generatedImage;
+        }
+        
+        const patchRes = await API.patch(`/projects/${activeProject.id}/scenes/${sceneId}`, patchData);
+        
+        set((state) => ({
+          scenes: state.scenes.map((s) => (s.id === sceneId ? patchRes.data : s)),
+          activeScene: state.activeScene?.id === sceneId ? patchRes.data : state.activeScene,
+        }));
+      }
+      
+      return generatedImage;
+    } catch (err) {
+      console.error("Error generating shot image:", err);
+      return null;
+    }
+  },
+
+  createSceneFromSandbox: async (title, prompt, storyboard) => {
+    const { activeProject } = get();
+    if (!activeProject) return null;
+    try {
+      const res = await API.post(`/projects/${activeProject.id}/scenes`, {
+        title,
+        scene: prompt,
+        generated_text: prompt,
+        storyboard,
+        storyboards: [{ id: "sb_" + Date.now(), name: "Version 1", shots: storyboard, created_at: new Date().toISOString() }]
+      });
+      set((state) => ({
+        scenes: [...state.scenes, res.data].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        activeScene: res.data
+      }));
+      return res.data;
+    } catch (err) {
+      console.error("Error creating scene from sandbox:", err);
+      return null;
+    }
+  },
+
+  addNewStoryboardToScene: async (sceneId, name, shots) => {
+    const { activeProject, scenes } = get();
+    if (!activeProject || !sceneId) return null;
+    const scene = scenes.find(s => s.id === sceneId);
+    if (!scene) return null;
+    
+    try {
+      const currentStoryboards = scene.storyboards || [];
+      const newStoryboard = {
+        id: "sb_" + Date.now(),
+        name: name || `Version ${currentStoryboards.length + 1}`,
+        shots,
+        created_at: new Date().toISOString()
+      };
+      const updatedStoryboards = [...currentStoryboards, newStoryboard];
+      
+      const patchData = {
+        storyboards: updatedStoryboards
+      };
+      if (!scene.storyboard || scene.storyboard.length === 0) {
+        patchData.storyboard = shots;
+      }
+      
+      const res = await API.patch(`/projects/${activeProject.id}/scenes/${sceneId}`, patchData);
+      
+      set((state) => ({
+        scenes: state.scenes.map((s) => (s.id === sceneId ? res.data : s)),
+        activeScene: state.activeScene?.id === sceneId ? res.data : state.activeScene,
+      }));
+      return res.data;
+    } catch (err) {
+      console.error("Error adding new storyboard to scene:", err);
+      return null;
+    }
+  },
+
+  clearStoryboard: () => set({ storyboard: null })
 }));

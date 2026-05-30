@@ -19,7 +19,8 @@ import {
   ChevronUp,
   Network,
   Image,
-  BookOpen
+  BookOpen,
+  Clapperboard
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -83,6 +84,7 @@ export default function Sidebar() {
     { name: "Memories", icon: History },
     { name: "Story Bible", icon: BookOpen },
     { name: "Scene Studio", icon: Sparkles },
+    { name: "Storyboard", icon: Clapperboard },
     { name: "Gallery", icon: Image },
     { name: "Settings", icon: Settings }
   ];
@@ -93,10 +95,8 @@ export default function Sidebar() {
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-6 px-2 shrink-0">
-          <div className="w-9 h-9 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-center">
-            <Film className="w-5 h-5 text-purple-400" />
-          </div>
-          <span className="text-xl font-extrabold tracking-tight text-white">EchoVerse</span>
+          <img src="/logo.png" alt="Manomaya Logo" className="w-9 h-9 object-contain rounded-xl" />
+          <span className="text-xl font-extrabold tracking-tight text-white">Manomaya</span>
         </div>
 
         {/* Active Project Selector */}

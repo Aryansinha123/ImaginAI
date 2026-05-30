@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import { useToast } from "./ToastProvider";
-import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, ImagePlus, Video } from "lucide-react";
+import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, ImagePlus, Video, Play } from "lucide-react";
 import { EMOTION_KEYS, parseEmotionDisplayEntry, resolveCurrentEmotionsForPair, getAccumulatedEmotionsFromScenes } from "../lib/emotionUtils";
 
 // Helper: safely convert any value to a renderable string (prevents React "Objects are not valid as a React child" crashes)
@@ -56,21 +56,41 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
 
   // Handle keyboard navigation for zoomed storyboard carousel
   useEffect(() => {
-    if (activeFrameIndex === null) return;
+    if (activeFrameIndex === null || !activeScene) return;
     
     const handleKeyDown = (e) => {
+      const maxIdx = activeScene.images ? activeScene.images.length - 1 : 0;
       if (e.key === "Escape") {
         setActiveFrameIndex(null);
       } else if (e.key === "ArrowLeft") {
-        setActiveFrameIndex((prev) => (prev > 0 ? prev - 1 : 2));
+        setActiveFrameIndex((prev) => (prev > 0 ? prev - 1 : maxIdx));
       } else if (e.key === "ArrowRight") {
-        setActiveFrameIndex((prev) => (prev < 2 ? prev + 1 : 0));
+        setActiveFrameIndex((prev) => (prev < maxIdx ? prev + 1 : 0));
       }
     };
     
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeFrameIndex]);
+  }, [activeFrameIndex, activeScene]);
+
+  // Handle keyboard navigation for zoomed video clips carousel
+  useEffect(() => {
+    if (activeClipIndex === null || !activeScene) return;
+    
+    const handleKeyDown = (e) => {
+      const maxIdx = activeScene.clips ? activeScene.clips.length - 1 : 0;
+      if (e.key === "Escape") {
+        setActiveClipIndex(null);
+      } else if (e.key === "ArrowLeft") {
+        setActiveClipIndex((prev) => (prev > 0 ? prev - 1 : maxIdx));
+      } else if (e.key === "ArrowRight") {
+        setActiveClipIndex((prev) => (prev < maxIdx ? prev + 1 : 0));
+      }
+    };
+    
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeClipIndex, activeScene]);
 
   // Sync state if activeScene is selected
   useEffect(() => {
@@ -566,8 +586,8 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                 <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" />
               </div>
               <p className="text-sm font-semibold text-zinc-400">Rendering alternate universe sequence...</p>
-              <p className="text-xs text-zinc-550 mt-2 max-w-[280px] leading-relaxed">
-                The EchoVerse engine is compiling character profiles, relationship dynamics, and memories. This process may take 30 to 40 seconds.
+              <p className="text-xs text-zinc-555 mt-2 max-w-[280px] leading-relaxed">
+                The Manomaya engine is compiling character profiles, relationship dynamics, and memories. This process may take 30 to 40 seconds.
               </p>
             </div>
           ) : generatedText ? (
@@ -824,7 +844,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                         className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg cursor-pointer hover:border-purple-500/30 transition-all"
                       >
                         <img 
-                          src={`http://127.0.0.1:8000/generated_images/${img}`}
+                          src={`/api/images/${img}`}
                           alt={`Generated cinematic scene frame ${idx + 1}`}
                           className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]"
                         />
@@ -841,7 +861,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                     className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg cursor-pointer hover:border-purple-500/30 transition-all"
                   >
                     <img 
-                      src={`http://127.0.0.1:8000/generated_images/${activeScene.image}`}
+                      src={`/api/images/${activeScene.image}`}
                       alt="Generated cinematic scene frame"
                       className="w-full h-full object-cover transition-all duration-500 group-hover:scale-[1.02]"
                     />
@@ -887,7 +907,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                         }
                         setIsGeneratingClips(false);
                       }}
-                      disabled={isGeneratingClips || !activeScene.images || activeScene.images.length === 0}
+                      disabled={isGeneratingClips || !activeScene.generated_text}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-pink-650 to-purple-650 hover:from-pink-600 hover:to-purple-600 disabled:from-zinc-900 disabled:to-zinc-900 disabled:text-zinc-600 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95 shadow-md shadow-pink-500/10"
                     >
                       {isGeneratingClips ? (
@@ -908,14 +928,19 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                         className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg cursor-pointer hover:border-purple-500/30 transition-all"
                       >
                         <video
-                          src={`http://127.0.0.1:8000/generated_images/${clip}`}
+                          src={`/api/videos/${clip}`}
                           className="w-full h-full object-cover"
                           loop
                           muted
                           playsInline
-                          autoPlay
                           type="video/mp4"
                         />
+                        {/* Play Button Overlay */}
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center group-hover:scale-110 group-hover:bg-purple-600/90 group-hover:border-purple-400/30 transition-all duration-300 shadow-md">
+                            <Play className="w-4 h-4 text-white fill-white translate-x-0.5" />
+                          </div>
+                        </div>
                         <div className="absolute bottom-2 left-2 bg-black/65 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-mono text-zinc-400">
                           Clip {idx + 1}
                         </div>
@@ -925,13 +950,13 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                 ) : (
                   <div className="flex flex-col items-center justify-center py-12 border border-dashed border-zinc-850 rounded-2xl bg-zinc-950/30">
                     <Video className="w-8 h-8 text-zinc-700 mb-3" />
-                    <p className="text-xs font-semibold text-zinc-500">No cinematic video clips yet</p>
+                    <p className="text-xs font-semibold text-zinc-550">No cinematic video clips yet</p>
                     <p className="text-[10px] text-zinc-600 mt-1 max-w-[280px] text-center mb-4 leading-relaxed">
-                      {activeScene?.images && activeScene.images.length > 0
-                        ? "Storyboard images are ready. Click below or above to generate cinematic 3D motion clips."
-                        : "Generate storyboard images first to unlock cinematic video clip generation."}
+                      {activeScene?.generated_text
+                        ? "The screenplay is ready. Click below or above to generate three 10-second cinematic video clips."
+                        : "Generate a cinematic script first to unlock video clip generation."}
                     </p>
-                    {activeScene?.images && activeScene.images.length > 0 && (
+                    {activeScene?.generated_text && (
                       <button
                         type="button"
                         onClick={async () => {
@@ -1002,7 +1027,7 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
           {/* Zoomed Image Container */}
           <div className="max-w-5xl w-full aspect-video rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl relative bg-zinc-950 flex items-center justify-center animate-scale-in">
             <img
-              src={`http://127.0.0.1:8000/generated_images/${
+              src={`/api/images/${
                 activeScene.images && activeScene.images.length > 0 
                   ? activeScene.images[activeFrameIndex] 
                   : activeScene.image
@@ -1065,20 +1090,58 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
           >
             <X className="w-5 h-5" />
           </button>
+
+          {/* Previous Button (Carousel) */}
+          <button
+            onClick={() => {
+              const maxIdx = activeScene.clips ? activeScene.clips.length - 1 : 0;
+              setActiveClipIndex((prev) => (prev > 0 ? prev - 1 : maxIdx));
+            }}
+            className="absolute left-6 p-3 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-450 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-lg hover:scale-105 active:scale-95 z-10"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+
           {/* Video Container */}
           <div className="max-w-5xl w-full aspect-video rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl relative bg-zinc-950 flex items-center justify-center animate-scale-in">
             <video
-              src={`http://127.0.0.1:8000/generated_images/${activeScene.clips[activeClipIndex]}`}
+              key={activeClipIndex}
+              src={`/api/videos/${activeScene.clips[activeClipIndex]}`}
               className="w-full h-full object-cover"
               loop
               muted
               controls
-              autoPlay
             />
-            <div className="absolute bottom-2 left-2 bg-black/65 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-mono text-zinc-400">
+            <div className="absolute top-4 left-4 bg-black/65 backdrop-blur-md px-2 py-1 rounded text-[10px] font-mono text-zinc-400 z-10">
               Clip {activeClipIndex + 1}
             </div>
           </div>
+
+          {/* Next Button (Carousel) */}
+          <button
+            onClick={() => {
+              const maxIdx = activeScene.clips ? activeScene.clips.length - 1 : 0;
+              setActiveClipIndex((prev) => (prev < maxIdx ? prev + 1 : 0));
+            }}
+            className="absolute right-6 p-3 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-450 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-lg hover:scale-105 active:scale-95 z-10"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+
+          {/* Bullet Indicators */}
+          {activeScene.clips && activeScene.clips.length > 1 && (
+            <div className="absolute bottom-8 flex gap-2">
+              {activeScene.clips.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveClipIndex(idx)}
+                  className={`w-2.5 h-2.5 rounded-full transition-all cursor-pointer ${
+                    activeClipIndex === idx ? "bg-purple-500 w-6" : "bg-zinc-700 hover:bg-zinc-550"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

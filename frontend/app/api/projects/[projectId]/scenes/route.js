@@ -114,12 +114,15 @@ export async function GET(req, { params }) {
       created_at: s.created_at,
       images: s.images || (s.image ? [s.image] : []),
       image: s.image,
+      clips: s.clips || [],
       direction: s.direction,
       emotion_deltas: s.emotion_deltas || {},
       hidden_thoughts: s.hidden_thoughts || {},
       parent_id: s.parent_id || null,
       branch_id: s.branch_id || "main",
-      decision: s.decision || null
+      decision: s.decision || null,
+      storyboard: s.storyboard || [],
+      storyboards: s.storyboards || (s.storyboard && s.storyboard.length > 0 ? [{ id: "default", name: "Version 1", shots: s.storyboard, created_at: s.created_at || new Date().toISOString() }] : [])
     }));
 
     return Response.json(mapped);
@@ -138,7 +141,7 @@ export async function POST(req, { params }) {
   const { projectId } = await params;
 
   try {
-    const { scene, characterIds, character, title, tone, generated_text, parent_id, branch_id, decision } = await req.json();
+    const { scene, characterIds, character, title, tone, generated_text, parent_id, branch_id, decision, storyboard, storyboards } = await req.json();
     if (!scene) {
       return Response.json({ detail: "Missing scene prompt" }, { status: 400 });
     }
@@ -288,10 +291,13 @@ export async function POST(req, { params }) {
       direction: directionData || null,
       images: imageFilenames || [],
       image: imageFilename,
+      clips: [],
       hidden_thoughts: hiddenThoughts || {},
       parent_id: parent_id ? parent_id.toString() : null,
       branch_id: branch_id || "main",
-      decision: decision || null
+      decision: decision || null,
+      storyboard: storyboard || [],
+      storyboards: storyboards || (storyboard && storyboard.length > 0 ? [{ id: "default", name: "Version 1", shots: storyboard, created_at: new Date().toISOString() }] : [])
     };
 
     const result = await db.collection("scenes").insertOne(newScene);
@@ -365,10 +371,13 @@ export async function POST(req, { params }) {
       direction: directionData || null,
       images: newScene.images,
       image: newScene.image || null,
+      clips: newScene.clips || [],
       hidden_thoughts: newScene.hidden_thoughts || {},
       parent_id: newScene.parent_id || null,
       branch_id: newScene.branch_id || "main",
-      decision: newScene.decision || null
+      decision: newScene.decision || null,
+      storyboard: newScene.storyboard || [],
+      storyboards: newScene.storyboards || []
     });
   } catch (error) {
     console.error("Create Scene Error:", error);

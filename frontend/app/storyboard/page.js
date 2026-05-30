@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import { useStore } from "../../store/useStore";
 import Sidebar from "../../components/Sidebar";
-import RelationshipCanvasView from "../../components/RelationshipCanvasView";
+import StoryboardPanel from "../../components/storyboard/StoryboardPanel";
 import { Film, Loader2 } from "lucide-react";
 
-export default function RelationshipsPage() {
+export default function StoryboardPage() {
   const { user, initAuth, activeProject, authInitialized } = useStore();
 
   useEffect(() => {
@@ -21,13 +21,14 @@ export default function RelationshipsPage() {
     );
   }
 
+  // Redirect or show login prompt if not authenticated
   if (!user) {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center">
         <img src="/logo.png" alt="Manomaya Logo" className="w-16 h-16 object-contain rounded-2xl mb-6" />
         <h2 className="text-2xl font-bold text-white tracking-tight">Please Sign In</h2>
         <p className="text-sm text-zinc-500 mt-2 max-w-sm">
-          You must be logged in to view the Relationship Canvas.
+          You must be logged in to view the Storyboard and manage your universes.
         </p>
       </div>
     );
@@ -39,7 +40,7 @@ export default function RelationshipsPage() {
 
       <div className="flex-1 h-screen bg-zinc-900 flex flex-col overflow-hidden">
         {activeProject ? (
-          <RelationshipCanvasView />
+          <StoryboardPanel />
         ) : (
           <div className="flex-1 flex flex-col justify-center items-center text-center p-8 relative overflow-hidden">
             <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full bg-purple-900/5 blur-[120px] pointer-events-none" />
@@ -50,7 +51,7 @@ export default function RelationshipsPage() {
               <div>
                 <h2 className="text-2xl font-bold text-white tracking-tight">Open a Universe first</h2>
                 <p className="text-sm text-zinc-500 mt-2 leading-relaxed">
-                  Select a project from the sidebar to open the Relationship Canvas.
+                  Select a project from the sidebar to open the Storyboard Engine for that universe.
                 </p>
               </div>
             </div>

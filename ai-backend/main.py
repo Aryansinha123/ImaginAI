@@ -24,6 +24,8 @@ from story_bible.story_bible_engine import (
 )
 from director_engine import generate_direction
 from image_generator import generate_scene_image
+from storyboard.schemas import StoryboardResponse
+from storyboard.services import generate_storyboard
 
 from visual_prompt_engine import (
     build_visual_prompt
@@ -77,13 +79,20 @@ client = Groq(
 @app.get("/")
 def home():
     return {
-        "message": "EchoVerse AI Backend Running"
+        "message": "Manomaya AI Backend Running"
     }
 
 
 @app.get("/story-bible")
 def get_story_bible_endpoint(project_id: str = "default_project"):
-    return create_story_bible(project_id)
+    return get_story_bible(project_id)
+
+class StoryboardRequest(BaseModel):
+    scene: str
+
+@app.post("/generate-storyboard", response_model=StoryboardResponse)
+def generate_storyboard_endpoint(request_data: StoryboardRequest):
+    return generate_storyboard(request_data.scene)
 
 @app.post("/chat")
 def chat(prompt: str):
@@ -209,7 +218,7 @@ def generate_scene(request_data: SceneRequest):
     character_arcs_str = "\n\n".join(character_arcs_list)
 
     system_prompt = f"""
-You are EchoVerse, a modern, cinematic storytelling AI.
+You are Manomaya, a modern, cinematic storytelling AI.
 Your purpose is to generate highly realistic, emotionally grounded, and immersive scenes that feel like a premium Netflix drama or indie film.
 
 ========================
@@ -561,30 +570,173 @@ def generate_scene_images(request_data: ImageGenerationRequest):
         "image": image_filenames[0] if image_filenames else None,
     }
 
+def generate_progressive_prompts(base_prompt, client=None):
+    if not client:
+        from groq import Groq
+        api_key = os.getenv("GROQ_API_KEY")
+        if not api_key:
+            return [
+                f"{base_prompt}, step 1: starting action, character begins action sequence",
+                f"{base_prompt}, step 2: mid-point action, character gestures, dynamic movement",
+                f"{base_prompt}, step 3: ending action, character completes action, resolving pose"
+            ]
+        client = Groq(api_key=api_key)
+        
+    system_prompt = (
+        "You are a professional film director and master AI prompt engineer. "
+        "Given a single visual prompt for a cinematic movie still, generate a sequence of exactly 3 progressive "
+        "visual prompts that describe consecutive moments in a continuous 10-second video shot. "
+        "The setting, environment details, color palette, camera lens, and character physical features (face shape, age, "
+        "clothing, hair, eyes) must remain completely identical. "
+        "Only describe a progression of subtle actions, hand gestures, facial expression changes, or body movements "
+        "that tell a micro-story (e.g. step 1: character starts speaking, eyes narrow; step 2: character shifts weight, reaches out slightly with their hand; step 3: character finishes speaking, looks down with a quiet expression). "
+        "Ensure each prompt is highly detailed and cinematic for FLUX, using photographic descriptions instead of buzzwords like 'photorealistic'. "
+        "Return a JSON object with exactly one key 'prompts' containing a list of exactly 3 strings (each representing a step)."
+    )
+    
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Cinematic base prompt: {base_prompt}"}
+            ],
+            response_format={"type": "json_object"},
+            max_tokens=600,
+            temperature=0.7
+        )
+        data = json.loads(completion.choices[0].message.content)
+        prompts = data.get("prompts", [])
+        if isinstance(prompts, list) and len(prompts) == 3:
+            return prompts
+    except Exception as e:
+        print(f"Error generating progressive prompts: {e}")
+        
+    # Fallback to simple appending
+    return [
+        f"{base_prompt}, step 1: starting action, character begins action sequence",
+        f"{base_prompt}, step 2: mid-point action, character gestures, dynamic movement",
+        f"{base_prompt}, step 3: ending action, character completes action, resolving pose"
+    ]
+
 class ClipsGenerationRequest(BaseModel):
-    images: List[str]
+    images: Optional[List[str]] = []
+    scene_text: Optional[str] = None
+    direction: Optional[Dict[str, Any]] = None
+    characters: Optional[List[Dict[str, Any]]] = []
+    num_frames: Optional[int] = 3
 
 @app.post("/generate-scene-clips")
 def generate_scene_clips(request_data: ClipsGenerationRequest):
-    """Generate dynamic video MP4 clips from static storyboard frame filenames."""
-    images = request_data.images or []
+    """Generate dynamic progressive transition video MP4 clips from scene context."""
+    scene_text = request_data.scene_text
+    direction_data = request_data.direction
+    characters = request_data.characters or []
+    num_frames = min(request_data.num_frames or 3, 5)
+    
     clip_filenames = []
     
-    if not images:
-        return {"clips": [], "error": "No storyboard images provided"}
-        
     try:
-        from video_generator import generate_video_clip
-        for img in images:
-            img_path = os.path.join("generated_images", img)
-            if os.path.exists(img_path):
+        from video_generator import generate_progressive_video_clip
+        
+        if scene_text:
+            if not direction_data:
                 try:
-                    base = os.path.splitext(img)[0]
-                    clip_name = f"{base}.mp4"
-                    generate_video_clip(img_path, clip_name)
-                    clip_filenames.append(clip_name)
-                except Exception as clip_err:
-                    print(f"Error generating clip for {img}: {clip_err}")
+                    direction_data = generate_direction(scene_text[:2000])
+                except Exception as e:
+                    print(f"Error generating direction for video clips: {e}")
+                    direction_data = {
+                        "camera": "wide shot",
+                        "lighting": "natural",
+                        "weather": "clear",
+                        "mood": "neutral",
+                        "color_palette": "muted tones",
+                        "scene_intensity": 50
+                    }
+                    
+            from concurrent.futures import ThreadPoolExecutor
+            import uuid
+
+            def gen_video_clip_frame(i):
+                try:
+                    # 1. Build base visual prompt for this storyboard moment
+                    base_visual_prompt = build_visual_prompt(
+                        scene_text,
+                        direction_data,
+                        characters,
+                        frame_index=i
+                    )
+                    
+                    # 2. Call Groq to generate 3 progressive action prompts from the base
+                    prog_prompts = generate_progressive_prompts(base_visual_prompt, client)
+                    
+                    # 3. Generate the 3 image frames concurrently using Flux
+                    def gen_sub_frame(idx_and_prompt):
+                        idx, prompt_str = idx_and_prompt
+                        try:
+                            filename = generate_scene_image(prompt_str)
+                            return filename
+                        except Exception as sub_err:
+                            print(f"Failed to generate subframe {idx+1} for clip {i+1}: {sub_err}")
+                            return None
+                            
+                    with ThreadPoolExecutor(max_workers=3) as frame_executor:
+                        img_files = list(frame_executor.map(gen_sub_frame, enumerate(prog_prompts)))
+                        
+                    # Filter out any failed image frames
+                    valid_files = [f for f in img_files if f]
+                    
+                    # If we don't have exactly 3 frames, try to duplicate/pad to make it 3, or fail gracefully
+                    if len(valid_files) < 3:
+                        if len(valid_files) > 0:
+                            # Pad to 3 files
+                            while len(valid_files) < 3:
+                                valid_files.append(valid_files[-1])
+                        else:
+                            raise Exception("Could not generate any subframes for progressive clip")
+                            
+                    image_paths = [os.path.join("generated_images", f) for f in valid_files]
+                    
+                    # 4. Compile the 3 images with crossfades into a single 10s video clip
+                    clip_name = f"video_clip_{uuid.uuid4()}.mp4"
+                    generate_progressive_video_clip(image_paths, clip_name, duration=10)
+                    
+                    # 5. Clean up temporary source images
+                    for img_p in image_paths:
+                        try:
+                            if os.path.exists(img_p):
+                                os.remove(img_p)
+                                print(f"Deleted temporary video subframe image: {img_p}")
+                        except Exception as rm_err:
+                            print(f"Failed to delete temporary image {img_p}: {rm_err}")
+                            
+                    return clip_name
+                except Exception as frame_err:
+                    print(f"Error generating progressive video clip for frame {i+1}: {frame_err}")
+                    return None
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                results = list(executor.map(gen_video_clip_frame, range(num_frames)))
+                clip_filenames = [c for c in results if c]
+                
+        else:
+            # Fallback to existing storyboard images if scene_text is not provided
+            images = request_data.images or []
+            if not images:
+                return {"clips": [], "error": "No storyboard images or scene text provided"}
+                
+            from video_generator import generate_video_clip
+            for img in images:
+                img_path = os.path.join("generated_images", img)
+                if os.path.exists(img_path):
+                    try:
+                        base = os.path.splitext(img)[0]
+                        clip_name = f"{base}.mp4"
+                        generate_video_clip(img_path, clip_name, duration=10)
+                        clip_filenames.append(clip_name)
+                    except Exception as clip_err:
+                        print(f"Error generating clip for {img}: {clip_err}")
+                        
     except Exception as e:
         print(f"Error in clips generation pipeline: {e}")
         
@@ -639,7 +791,7 @@ def character_summary(request_data: CharacterSummaryRequest):
                 scenes_context += f"  Direction: {s.get('direction')}\n"
     
     prompt = f"""
-You are EchoVerse, a narrative design assistant.
+You are Manomaya, a narrative design assistant.
 Analyze the following character profile, story bible context, and history of scenes they participated in.
 
 Character Profile:

@@ -35,13 +35,30 @@ export async function POST(req, { params }) {
       return Response.json({ detail: "Scene not found" }, { status: 404 });
     }
 
-    if (!scene.images || scene.images.length === 0) {
-      return Response.json({ detail: "Generate storyboard images before generating video clips" }, { status: 400 });
+    if (!scene.generated_text) {
+      return Response.json({ detail: "Scene has no generated text to visualize" }, { status: 400 });
+    }
+
+    // Resolve characters from the scene's characterIds
+    let characters = [];
+    if (scene.characterIds && scene.characterIds.length > 0) {
+      const charOids = scene.characterIds.map(id => new ObjectId(id));
+      characters = await db.collection("characters")
+        .find({ _id: { $in: charOids } })
+        .toArray();
     }
 
     // Call the Python backend to generate video clips
     const apiRes = await axios.post("http://127.0.0.1:8000/generate-scene-clips", {
-      images: scene.images,
+      scene_text: scene.generated_text,
+      direction: scene.direction || null,
+      characters: characters.map(c => ({
+        name: c.name,
+        age: c.age,
+        gender: c.gender,
+        core_traits: c.core_traits,
+      })),
+      num_frames: 3,
     });
 
     const clipFilenames = apiRes.data.clips || [];

@@ -10,6 +10,29 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 story_bibles = {}
 
+DATA_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "story_bibles.json")
+
+def load_story_bibles():
+    global story_bibles
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                story_bibles = json.load(f)
+        except Exception as e:
+            print(f"Error loading story bibles: {e}")
+            story_bibles = {}
+    else:
+        story_bibles = {}
+    return story_bibles
+
+def save_story_bibles():
+    try:
+        os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(story_bibles, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"Error saving story bibles: {e}")
+
 
 _PRIORITY_KEYS = (
     "event", "title", "summary", "thread", "description", "text",
@@ -74,6 +97,7 @@ def _normalize_bible_list(items):
 
 
 def create_story_bible(project_id):
+    load_story_bibles()
     if project_id not in story_bibles:
         story_bibles[project_id] = {
             "important_events": [],
@@ -82,6 +106,7 @@ def create_story_bible(project_id):
             "relationship_summaries": {},
             "world_summary": "",
         }
+        save_story_bibles()
     return story_bibles[project_id]
 
 
@@ -110,7 +135,12 @@ def _sanitize_story_bible(bible):
 
 
 def get_story_bible(project_id):
-    return _sanitize_story_bible(create_story_bible(project_id))
+    load_story_bibles()
+    bible = create_story_bible(project_id)
+    sanitized = _sanitize_story_bible(bible)
+    story_bibles[project_id] = sanitized
+    save_story_bibles()
+    return sanitized
 
 
 def update_story_bible(project_id, bible_update):
@@ -120,6 +150,7 @@ def update_story_bible(project_id, bible_update):
         if key in bible:
             bible[key] = value
 
+    save_story_bibles()
     return bible
 
 
@@ -155,6 +186,7 @@ def merge_story_bible_analysis(project_id, analysis):
     if world:
         bible["world_summary"] = world
 
+    save_story_bibles()
     return bible
 
 

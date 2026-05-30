@@ -51,7 +51,7 @@ export default function AuthCard({ onClose }) {
           {isLogin ? "Welcome back" : "Create account"}
         </h2>
         <p className="text-sm text-zinc-400 mt-2">
-          {isLogin ? "Log in to continue your adventure" : "Join EchoVerse and start writing"}
+          {isLogin ? "Log in to continue your adventure" : "Join Manomaya and start writing"}
         </p>
       </div>
 

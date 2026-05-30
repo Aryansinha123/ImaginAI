@@ -1,3 +1,41 @@
+import os
+from groq import Groq
+
+def enhance_prompt_with_llm(base_prompt):
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        return base_prompt
+    try:
+        client = Groq(api_key=api_key)
+        system_prompt = (
+            "You are a professional cinematographer and master AI prompt engineer. "
+            "Your task is to rewrite the input visual description into a highly detailed, realistic, and cinematic prompt for FLUX. "
+            "Enhance the prompt by describing: "
+            "1. The environment: lighting (e.g. volumetric shafts, anamorphic lens flares, soft golden hour), atmosphere (e.g. humid air, floating dust motes), and realistic textures. "
+            "2. The characters: precise postures, subtle facial expressions (e.g. jaw clenched, eyes scanning), detailed skin textures, and clothing folds. "
+            "3. Composition: cinematic camera setup (e.g. 35mm lens, shallow depth of field, sharp focus, natural color grading). "
+            "Keep the output as a single, highly descriptive paragraph (under 150 words) that flows naturally. "
+            "Ensure the scene is extremely realistic and matches a premium film or high-end drama. "
+            "Do NOT use generic buzzwords like 'photorealistic', 'hyperrealistic', '4k', or '8k'. "
+            "Output ONLY the enhanced prompt paragraph, with no introductory text or markdown formatting."
+        )
+        
+        completion = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Scene details to enhance:\n{base_prompt}"}
+            ],
+            max_tokens=250,
+            temperature=0.7
+        )
+        enhanced = completion.choices[0].message.content.strip()
+        if enhanced:
+            return enhanced
+    except Exception as e:
+        print(f"Error in prompt enhancement: {e}")
+    return base_prompt
+
 def build_visual_prompt(
     scene,
     direction,
@@ -79,4 +117,4 @@ def build_visual_prompt(
     Frame {frame_index + 1} of 3
     """
 
-    return prompt
+    return enhance_prompt_with_llm(prompt)

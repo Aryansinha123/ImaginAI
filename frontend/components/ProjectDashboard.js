@@ -11,6 +11,7 @@ import SettingsView from "./SettingsView";
 import RelationshipCanvasView from "./RelationshipCanvasView";
 import GalleryView from "./GalleryView";
 import StoryBibleView from "./StoryBibleView";
+import StoryboardPanel from "./storyboard/StoryboardPanel";
 import { Sparkles, Film, Loader2 } from "lucide-react";
 
 export default function ProjectDashboard() {
@@ -71,6 +72,8 @@ export default function ProjectDashboard() {
             onSelectScene={setActiveScene}
           />
         );
+      case "Storyboard":
+        return <StoryboardPanel />;
       case "Gallery":
         return <GalleryView />;
       case "Settings":
@@ -123,7 +126,7 @@ export default function ProjectDashboard() {
 
       {/* Footer */}
       <footer className="px-6 py-2 border-t border-zinc-900 bg-zinc-950/20 text-[10px] text-zinc-500 font-mono flex items-center justify-between z-10 shrink-0">
-        <span>EchoVerse Studio &copy; {new Date().getFullYear()}</span>
+        <span>Manomaya Studio &copy; {new Date().getFullYear()}</span>
         <span>Local Time: {currentTime}</span>
         <span>Project Initiated: {activeProject.created_at ? new Date(activeProject.created_at).toLocaleString() : 'Recently'}</span>
       </footer>

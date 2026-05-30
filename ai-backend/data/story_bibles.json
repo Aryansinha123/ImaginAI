@@ -1,0 +1,23 @@
+{
+  "6a19800675cc546207e18890": {
+    "important_events": [
+      "Ryan and Aisha discuss making a difference",
+      "Ryan expresses vulnerability",
+      "Ryan expressed his desire to change the world",
+      "Aisha cautioned against unrealistic expectations"
+    ],
+    "active_story_threads": [
+      "Ryan and Aisha's romantic tension",
+      "Ryan's desire for purpose and change"
+    ],
+    "character_summaries": {
+      "Ryan": "Struggles with finding purpose and sense of impact",
+      "Aisha": "Maintains her practical and cautious approach to life"
+    },
+    "relationship_summaries": {
+      "Ryan->Aisha": "Ryan's passion and idealism clash with Aisha's skepticism",
+      "Aisha->Ryan": "Aisha is becoming more hesitant and guarded in her interactions with Ryan"
+    },
+    "world_summary": "The scene takes place against a backdrop of a vast and majestic city, highlighting the contrast between the characters' small aspirations and the larger universe."
+  }
+}

@@ -35,10 +35,8 @@ export default function Home() {
         {/* Navbar */}
         <header className="w-full max-w-7xl mx-auto px-6 py-6 flex items-center justify-between shrink-0 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center">
-              <Film className="w-5 h-5 text-purple-400" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">EchoVerse</span>
+            <img src="/logo.png" alt="Manomaya Logo" className="w-9 h-9 object-contain rounded-xl" />
+            <span className="text-xl font-bold tracking-tight">Manomaya</span>
           </div>
           <button
             onClick={() => setShowAuthModal(true)}
