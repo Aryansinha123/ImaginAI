@@ -3,25 +3,39 @@ import { getUserIdFromRequest } from "@/lib/auth";
 import { ObjectId } from "mongodb";
 
 export async function GET(req, { params }) {
+  const fs = require("fs");
+  const { projectId } = await params;
+  
+  // Write parameters to a debug log file in public folder
+  try {
+    fs.appendFileSync("c:/Users/hp/CODEBASE/Projects/ImaginAI/frontend/public/debug_api.txt", `[${new Date().toISOString()}] characters GET ENTERED: projectId=${projectId}\n`);
+  } catch (e) {
+    console.error("LOGGING ERROR:", e);
+  }
+
   const userId = getUserIdFromRequest(req);
+  
+  try {
+    fs.appendFileSync("c:/Users/hp/CODEBASE/Projects/ImaginAI/frontend/public/debug_api.txt", `[${new Date().toISOString()}] characters GET: userId=${userId}\n`);
+  } catch (e) {}
+
   if (!userId) {
     return Response.json({ detail: "Unauthorized" }, { status: 401 });
   }
-
-  const { projectId } = await params;
 
   try {
     const client = await clientPromise;
     const db = client.db("imaginai_db");
 
-    console.log("DEBUG characters GET: projectId =", projectId, "userId =", userId);
     // Verify project exists and belongs to user
     const project = await db.collection("projects").findOne({
       _id: new ObjectId(projectId),
       user_id: new ObjectId(userId)
     });
 
-    console.log("DEBUG characters GET: found project =", project);
+    try {
+      fs.appendFileSync("c:/Users/hp/CODEBASE/Projects/ImaginAI/frontend/public/debug_api.txt", `[${new Date().toISOString()}] characters GET: found project=${JSON.stringify(project)}\n`);
+    } catch (e) {}
 
     if (!project) {
       return Response.json({ detail: "Project not found" }, { status: 404 });

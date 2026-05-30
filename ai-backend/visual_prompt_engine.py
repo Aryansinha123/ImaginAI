@@ -15,14 +15,27 @@ def build_visual_prompt(
         hair = appearance.get('hair') or char.get('hair') or ""
         clothing = appearance.get('clothing') or char.get('clothing') or ""
         eyes = appearance.get('eyes') or char.get('eyes') or ""
+        skin_tone = appearance.get('skinTone') or char.get('skinTone') or ""
+        height = appearance.get('height') or char.get('height') or ""
+        age = char.get('age') or ""
+        gender = char.get('gender') or ""
 
-        desc = f"""
-        {char.get('name', 'Unnamed')},
-        {hair},
-        {clothing},
-        {eyes}
-        """
+        # Check for threeDConfig customized color values
+        three_d = char.get('threeDConfig') or {}
+        color_details = []
+        if three_d.get('hairColor'):
+            color_details.append(f"hair hex: {three_d.get('hairColor')}")
+        if three_d.get('clothingColor'):
+            color_details.append(f"clothing hex: {three_d.get('clothingColor')}")
+        if three_d.get('skinColor'):
+            color_details.append(f"skin tone hex: {three_d.get('skinColor')}")
+        if three_d.get('faceShape'):
+            color_details.append(f"face shape: {three_d.get('faceShape')}")
+        if three_d.get('hairStyle'):
+            color_details.append(f"hair style structure: {three_d.get('hairStyle')}")
+        color_desc = f" (exact custom styling: {', '.join(color_details)})" if color_details else ""
 
+        desc = f"{char.get('name', 'Unnamed')} (a {age} {gender}, height: {height}), hair: {hair}, eyes: {eyes}, skin tone: {skin_tone}, clothing: {clothing}{color_desc}"
         character_descriptions.append(desc)
 
     joined_characters = ", ".join(

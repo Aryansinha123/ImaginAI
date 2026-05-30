@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import { useToast } from "./ToastProvider";
-import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, ImagePlus } from "lucide-react";
-import { EMOTION_KEYS, parseEmotionDisplayEntry } from "../lib/emotionUtils";
+import { Sparkles, Loader2, Users, Heart, MessageCircle, AlertCircle, Plus, Eye, BookOpen, TrendingUp, TrendingDown, ChevronLeft, ChevronRight, X, ImagePlus, Video } from "lucide-react";
+import { EMOTION_KEYS, parseEmotionDisplayEntry, resolveCurrentEmotionsForPair, getAccumulatedEmotionsFromScenes } from "../lib/emotionUtils";
 
 // Helper: safely convert any value to a renderable string (prevents React "Objects are not valid as a React child" crashes)
 const safeStr = (val, fallback = "") => {
@@ -21,7 +21,7 @@ const safeStr = (val, fallback = "") => {
 };
 
 export default function SceneStudioView({ activeScene, onSelectScene }) {
-  const { activeProject, characters: rawCharacters, scenes, generateScene, regenerateScene, updateScene, isGenerating, generateSceneImages } = useStore();
+  const { activeProject, characters: rawCharacters, scenes, generateScene, regenerateScene, updateScene, isGenerating, generateSceneImages, generateSceneClips } = useStore();
   const { toast, confirmAction } = useToast();
 
   // Sanitize characters to ensure no nested objects leak into JSX renders
@@ -43,6 +43,8 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
   const [generatedText, setGeneratedText] = useState("");
   const [activeFrameIndex, setActiveFrameIndex] = useState(null);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  const [isGeneratingClips, setIsGeneratingClips] = useState(false);
+  const [activeClipIndex, setActiveClipIndex] = useState(null);
 
   // Branching & Decision State
   const [parentId, setParentId] = useState("");
@@ -111,6 +113,53 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
     setSelectedCharIds((prev) =>
       prev.includes(charId) ? prev.filter((id) => id !== charId) : [...prev, charId]
     );
+  };
+
+  const getSceneRelationships = () => {
+    if (!activeScene || !activeScene.characterIds || activeScene.characterIds.length < 2) return [];
+
+    const activeSceneCharacters = activeScene.characterIds
+      .map(id => rawCharacters.find(c => c.id === id || c._id === id))
+      .filter(Boolean);
+
+    const ancestorEmotions = activeScene.parent_id
+      ? getAccumulatedEmotionsFromScenes(activeScene.parent_id, scenes)
+      : {};
+
+    const list = [];
+    const deltasSource = activeScene.emotion_deltas || activeScene.emotionDeltas || {};
+
+    for (let i = 0; i < activeSceneCharacters.length; i++) {
+      for (let j = 0; j < activeSceneCharacters.length; j++) {
+        if (i === j) continue;
+        const fromChar = activeSceneCharacters[i];
+        const toChar = activeSceneCharacters[j];
+        const pairKey = `${fromChar.name}->${toChar.name}`;
+        
+        let pairDeltas = deltasSource[pairKey];
+        
+        if (!pairDeltas) {
+          const currentEms = resolveCurrentEmotionsForPair(
+            pairKey,
+            ancestorEmotions,
+            activeProject,
+            fromChar,
+            toChar
+          );
+          pairDeltas = {};
+          for (const emotion of EMOTION_KEYS) {
+            pairDeltas[emotion] = {
+              previous: currentEms[emotion],
+              new: currentEms[emotion],
+              delta: 0
+            };
+          }
+        }
+        
+        list.push({ pairKey, fromChar, toChar, pairDeltas });
+      }
+    }
+    return list;
   };
 
   const handleGenerate = async (e) => {
@@ -511,10 +560,14 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
         <div className="flex-1 overflow-y-auto p-8 scrollbar-thin space-y-6">
           {isGenerating ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
-              <Loader2 className="w-8 h-8 text-purple-500 animate-spin mb-4" />
+              <div className="flex items-center gap-1.5 justify-center mb-5">
+                <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                <div className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" />
+              </div>
               <p className="text-sm font-semibold text-zinc-400">Rendering alternate universe sequence...</p>
-              <p className="text-xs text-zinc-550 mt-1 max-w-[240px]">
-                The EchoVerse engine is compiling character profiles, relationship dynamics, and memories.
+              <p className="text-xs text-zinc-550 mt-2 max-w-[280px] leading-relaxed">
+                The EchoVerse engine is compiling character profiles, relationship dynamics, and memories. This process may take 30 to 40 seconds.
               </p>
             </div>
           ) : generatedText ? (
@@ -667,95 +720,62 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
               )}
 
               {/* Dynamic Emotional Shifts */}
-              {activeScene && activeScene.emotion_deltas && Object.keys(activeScene.emotion_deltas).length > 0 && (
+              {activeScene && activeScene.characterIds && activeScene.characterIds.length >= 2 && (
                 <div className="bg-zinc-950/45 border border-zinc-850 p-5 rounded-2xl space-y-4">
-                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 font-bold mb-1 flex items-center gap-1.5 border-b border-zinc-850 pb-2">
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-550 font-bold mb-1 flex items-center gap-1.5 border-b border-zinc-850 pb-2">
                     <Heart className="w-3.5 h-3.5 text-purple-400" />
-                    Updated Relationship Dynamics
+                    Relationship Dynamics
                   </h4>
                   
                   <div className="space-y-4">
-                    {Object.entries(activeScene.emotion_deltas).map(([pairKey, pairDeltas]) => {
-                      const isDirectional = pairKey.includes("->");
-                      
-                      if (isDirectional) {
-                        const [fromName, toName] = pairKey.split("->");
-                        return (
-                          <div key={pairKey} className="space-y-2 bg-zinc-900/30 border border-zinc-850/50 p-4 rounded-xl">
-                            <h5 className="text-[11px] font-bold text-zinc-200 flex items-center gap-1.5 border-b border-zinc-850/50 pb-1.5 uppercase font-mono tracking-wider">
-                              <span className="text-purple-400">{fromName}</span>
-                              <span className="text-zinc-550">➔</span>
-                              <span className="text-purple-300">{toName}</span>
-                            </h5>
-                            <div className="grid grid-cols-1 gap-2">
-                              {EMOTION_KEYS.filter((e) => pairDeltas[e] !== undefined).map((emotion) => {
-                                const raw = pairDeltas[emotion];
-                                const { previous, newVal, delta } = parseEmotionDisplayEntry(raw);
-                                const isPositive = delta > 0;
-                                const noChange = delta === 0;
-                                const showValues = previous !== null && newVal !== null;
+                    {getSceneRelationships().map(({ pairKey, pairDeltas }) => {
+                      const [fromName, toName] = pairKey.split("->");
+                      return (
+                        <div key={pairKey} className="space-y-2 bg-zinc-900/30 border border-zinc-850/50 p-4 rounded-xl">
+                          <h5 className="text-[11px] font-bold text-zinc-200 flex items-center gap-1.5 border-b border-zinc-850/50 pb-1.5 uppercase font-mono tracking-wider">
+                            <span className="text-purple-400">{fromName}</span>
+                            <span className="text-zinc-550">➔</span>
+                            <span className="text-purple-300">{toName}</span>
+                          </h5>
+                          <div className="grid grid-cols-1 gap-2">
+                            {EMOTION_KEYS.map((emotion) => {
+                              const raw = pairDeltas[emotion];
+                              const { previous, newVal, delta } = parseEmotionDisplayEntry(raw);
+                              const isPositive = delta > 0;
+                              const noChange = delta === 0;
+                              const showValues = previous !== null && newVal !== null;
 
-                                return (
-                                  <div key={emotion} className="flex items-center justify-between px-3 py-1.5 bg-zinc-950/40 border border-zinc-850/30 rounded-lg">
-                                    <span className="text-xs font-semibold text-zinc-400 capitalize">
-                                      {emotion}
-                                    </span>
-                                    <div className="flex items-center gap-2.5">
-                                      {showValues && (
-                                        <span className="text-[11px] text-zinc-500 font-mono">
-                                          {previous}% &rarr; <span className="text-zinc-300 font-bold">{newVal}%</span>
-                                        </span>
-                                      )}
-                                      {!showValues && newVal !== null && (
-                                        <span className="text-[11px] text-zinc-400 font-mono font-bold">{newVal}%</span>
-                                      )}
-                                      {!noChange ? (
-                                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${isPositive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
-                                          {isPositive ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
-                                          {isPositive ? "+" : ""}{delta}%
-                                        </div>
-                                      ) : (
-                                        <div className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-850 text-zinc-500">
-                                          0%
-                                        </div>
-                                      )}
-                                    </div>
+                              return (
+                                <div key={emotion} className="flex items-center justify-between px-3 py-1.5 bg-zinc-950/40 border border-zinc-850/30 rounded-lg">
+                                  <span className="text-xs font-semibold text-zinc-400 capitalize">
+                                    {emotion}
+                                  </span>
+                                  <div className="flex items-center gap-2.5">
+                                    {showValues && (
+                                      <span className="text-[11px] text-zinc-500 font-mono">
+                                        {previous}% &rarr; <span className="text-zinc-300 font-bold">{newVal}%</span>
+                                      </span>
+                                    )}
+                                    {!showValues && newVal !== null && (
+                                      <span className="text-[11px] text-zinc-400 font-mono font-bold">{newVal}%</span>
+                                    )}
+                                    {!noChange ? (
+                                      <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${isPositive ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+                                        {isPositive ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                                        {isPositive ? "+" : ""}{delta}%
+                                      </div>
+                                    ) : (
+                                      <div className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-850 text-zinc-500">
+                                        0%
+                                      </div>
+                                    )}
                                   </div>
-                                );
-                              })}
-                            </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        );
-                      } else if (typeof pairDeltas === "object" && pairDeltas !== null) {
-                        const { previous, newVal, delta } = parseEmotionDisplayEntry(pairDeltas);
-                        const isPositive = delta > 0;
-                        const noChange = delta === 0;
-                        const showValues = previous !== null && newVal !== null;
-
-                        return (
-                          <div key={pairKey} className="flex items-center justify-between px-4 py-2 bg-zinc-900/50 border border-zinc-800 rounded-xl">
-                            <span className="text-sm font-semibold text-zinc-300 capitalize flex items-center gap-2">
-                               {pairKey}
-                            </span>
-                            <div className="flex items-center gap-3">
-                               {showValues && (
-                                 <span className="text-xs text-zinc-500 font-mono">{previous}% &rarr; <span className="text-zinc-300 font-bold">{newVal}%</span></span>
-                               )}
-                               {!noChange && (
-                                 <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${isPositive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                                   {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                   {isPositive ? '+' : ''}{delta}%
-                                 </div>
-                               )}
-                               {noChange && (
-                                 <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-500">
-                                   No Change
-                                 </div>
-                               )}
-                            </div>
-                          </div>
-                        );
-                      }
+                        </div>
+                      );
                     })}
                   </div>
                 </div>
@@ -837,6 +857,110 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
                     <p className="text-[10px] text-zinc-650 mt-1 max-w-[280px] text-center">
                       Click "Generate Storyboard" above to create 3 cinematic scene frames from the screenplay.
                     </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Cinematic Video Clips Section */}
+              <div className="space-y-3.5 pt-4 text-left">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-555 font-bold">
+                    Scene Cinematic Video Clips
+                  </h4>
+                  {activeScene && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (isGeneratingClips) return;
+                        setIsGeneratingClips(true);
+                        try {
+                          const updated = await generateSceneClips(activeScene.id);
+                          if (updated) {
+                            onSelectScene(updated);
+                            toast({ type: "success", title: "Video clips ready", message: "Cinematic motion clips generated successfully." });
+                          } else {
+                            toast({ type: "error", title: "Clips generation failed", message: "Check python backend connectivity." });
+                          }
+                        } catch (err) {
+                          console.error(err);
+                          toast({ type: "error", title: "Error", message: "Failed to generate video clips." });
+                        }
+                        setIsGeneratingClips(false);
+                      }}
+                      disabled={isGeneratingClips || !activeScene.images || activeScene.images.length === 0}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-pink-650 to-purple-650 hover:from-pink-600 hover:to-purple-600 disabled:from-zinc-900 disabled:to-zinc-900 disabled:text-zinc-600 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer active:scale-95 shadow-md shadow-pink-500/10"
+                    >
+                      {isGeneratingClips ? (
+                        <><Loader2 className="w-3 h-3 animate-spin" /> Rendering Clips...</>
+                      ) : (
+                        <><Video className="w-3 h-3" /> {activeScene.clips && activeScene.clips.length > 0 ? "Regenerate Clips" : "Generate Video Clips"}</>
+                      )}
+                    </button>
+                  )}
+                </div>
+                
+                {activeScene && (activeScene.clips && activeScene.clips.length > 0) ? (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {activeScene.clips.map((clip, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setActiveClipIndex(idx)}
+                        className="aspect-video bg-zinc-950/60 border border-zinc-850 rounded-2xl relative overflow-hidden group shadow-lg cursor-pointer hover:border-purple-500/30 transition-all"
+                      >
+                        <video
+                          src={`http://127.0.0.1:8000/generated_images/${clip}`}
+                          className="w-full h-full object-cover"
+                          loop
+                          muted
+                          playsInline
+                          autoPlay
+                          type="video/mp4"
+                        />
+                        <div className="absolute bottom-2 left-2 bg-black/65 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-mono text-zinc-400">
+                          Clip {idx + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 border border-dashed border-zinc-850 rounded-2xl bg-zinc-950/30">
+                    <Video className="w-8 h-8 text-zinc-700 mb-3" />
+                    <p className="text-xs font-semibold text-zinc-500">No cinematic video clips yet</p>
+                    <p className="text-[10px] text-zinc-600 mt-1 max-w-[280px] text-center mb-4 leading-relaxed">
+                      {activeScene?.images && activeScene.images.length > 0
+                        ? "Storyboard images are ready. Click below or above to generate cinematic 3D motion clips."
+                        : "Generate storyboard images first to unlock cinematic video clip generation."}
+                    </p>
+                    {activeScene?.images && activeScene.images.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (isGeneratingClips) return;
+                          setIsGeneratingClips(true);
+                          try {
+                            const updated = await generateSceneClips(activeScene.id);
+                            if (updated) {
+                              onSelectScene(updated);
+                              toast({ type: "success", title: "Video clips ready", message: "Cinematic motion clips generated successfully." });
+                            } else {
+                              toast({ type: "error", title: "Clips generation failed", message: "Check python backend connectivity." });
+                            }
+                          } catch (err) {
+                            console.error(err);
+                            toast({ type: "error", title: "Error", message: "Failed to generate video clips." });
+                          }
+                          setIsGeneratingClips(false);
+                        }}
+                        disabled={isGeneratingClips}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-pink-655 to-purple-655 hover:from-pink-600 hover:to-purple-600 disabled:from-zinc-900 disabled:to-zinc-900 disabled:text-zinc-600 text-white text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95 shadow-md shadow-pink-500/10"
+                      >
+                        {isGeneratingClips ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Rendering Clips...</>
+                        ) : (
+                          <><Video className="w-3.5 h-3.5" /> Generate Video Clips</>
+                        )}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -929,6 +1053,32 @@ export default function SceneStudioView({ activeScene, onSelectScene }) {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {/* Video Clip Modal Overlay */}
+      {activeClipIndex !== null && activeScene && activeScene.clips && activeScene.clips.length > 0 && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-6 select-none animate-fade-in">
+          {/* Close Button */}
+          <button
+            onClick={() => setActiveClipIndex(null)}
+            className="absolute top-6 right-6 p-2.5 rounded-full bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-lg hover:scale-105 active:scale-95"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          {/* Video Container */}
+          <div className="max-w-5xl w-full aspect-video rounded-3xl overflow-hidden border border-zinc-800 shadow-2xl relative bg-zinc-950 flex items-center justify-center animate-scale-in">
+            <video
+              src={`http://127.0.0.1:8000/generated_images/${activeScene.clips[activeClipIndex]}`}
+              className="w-full h-full object-cover"
+              loop
+              muted
+              controls
+              autoPlay
+            />
+            <div className="absolute bottom-2 left-2 bg-black/65 backdrop-blur-md px-1.5 py-0.5 rounded text-[8px] font-mono text-zinc-400">
+              Clip {activeClipIndex + 1}
+            </div>
+          </div>
         </div>
       )}
     </div>

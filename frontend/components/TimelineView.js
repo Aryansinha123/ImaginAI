@@ -260,6 +260,17 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
     [activeProject, nodes, sortedScenes, reorderScenes]
   );
 
+  const handleNodeDoubleClick = useCallback(
+    (_event, node) => {
+      const sc = sortedScenes.find((scene) => scene.id === node.id);
+      if (sc) {
+        onSelectScene(sc);
+        onViewChange("Scene Studio");
+      }
+    },
+    [sortedScenes, onSelectScene, onViewChange]
+  );
+
   // Linear view reordering handlers
   const moveScene = async (currentIndex, direction) => {
     const targetIndex = currentIndex + direction;
@@ -391,6 +402,7 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onNodeDragStop={handleNodeDragStop}
+            onNodeDoubleClick={handleNodeDoubleClick}
             nodeTypes={TIMELINE_NODE_TYPES}
             nodesDraggable
             nodesConnectable={false}
@@ -406,7 +418,7 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
             />
             <Panel position="top-center" className="!m-4">
               <p className="text-[10px] font-mono text-zinc-400 bg-zinc-900/90 border border-zinc-800 px-3 py-1.5 rounded-lg backdrop-blur-sm">
-                Drag scene cards horizontally to reorder branches · Order saves automatically
+                Drag scene cards horizontally to reorder branches · Double click node to edit in Studio
               </p>
             </Panel>
           </ReactFlow>
@@ -414,8 +426,8 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
       ) : (
         // CLASSIC LINEAR LIST VIEW
         <div className="flex-1 overflow-y-auto p-8 space-y-5 scrollbar-thin">
-          <p className="text-xs text-zinc-550 mb-2 italic">
-            💡 Tip: Drag and drop cards to reorder scenes, or use the ↑ and ↓ buttons.
+          <p className="text-xs text-zinc-555 mb-2 italic">
+            💡 Tip: Drag and drop cards to reorder scenes, or double click a card to open it in Studio.
           </p>
           <div className="space-y-5 max-w-4xl">
             {sortedScenes.map((scene, index) => {
@@ -429,7 +441,11 @@ export default function TimelineView({ onViewChange, onSelectScene }) {
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, index)}
-                  className={`group flex flex-col md:flex-row items-stretch bg-zinc-950/45 border transition-all duration-300 rounded-3xl overflow-hidden shadow-lg ${
+                  onDoubleClick={() => {
+                    onSelectScene(scene);
+                    onViewChange("Scene Studio");
+                  }}
+                  className={`group flex flex-col md:flex-row items-stretch bg-zinc-950/45 border transition-all duration-300 rounded-3xl overflow-hidden shadow-lg cursor-pointer select-none ${
                     dragOverIndex === index
                       ? "border-purple-500 ring-1 ring-purple-500/30"
                       : "border-zinc-850 hover:border-zinc-750"

@@ -1,0 +1,138 @@
+The current 3D character cloning system produces unrealistic results because it simply crops the user's face photo and pastes it onto a generic avatar head. I want to redesign the pipeline completely.
+
+Goals:
+
+1. Do NOT paste the uploaded image directly onto the avatar.
+2. Analyze the uploaded image and extract appearance attributes:
+
+   * Gender
+   * Approximate age
+   * Skin tone
+   * Hair color
+   * Hair style
+   * Eye color
+   * Face shape
+3. Store these attributes in the character appearance profile.
+4. Generate the 3D avatar using appearance attributes rather than the original photo.
+5. Match avatar skin tone, hairstyle, eye color, and facial proportions as closely as possible.
+6. Use the uploaded image only as a reference for appearance analysis, not as a texture.
+7. Create a dedicated Appearance Analysis service that outputs structured JSON.
+8. Build a Character Preview panel that shows:
+
+   * Uploaded reference image
+   * Extracted appearance attributes
+   * Generated avatar
+9. Make the architecture future-ready for:
+
+   * Mixamo animation
+   * Character consistency across scenes
+   * Video generation
+   * Facial expression mapping
+10. Remove the current face-pasting implementation entirely.
+
+The resulting avatar should look like a believable representation of the person rather than a photo pasted onto a mannequin.
+
+
+Keep your current avatar system.
+
+Add:
+
+Face Detection
+
+Use:
+
+npm install face-api.js
+
+or
+
+npm install @mediapipe/tasks-vision
+
+Extract:
+
+Eyes
+Nose
+Mouth
+Jaw
+Auto Crop Face
+
+Instead of:
+
+Entire image
+
+use:
+
+Only face region
+Circular Face Mask
+
+Apply:
+
+Feathered edge
+
+instead of hard crop.
+
+Huge improvement.
+
+V2 (What You Actually Want)
+
+Generate:
+
+Character Sheet
+
+from image.
+
+Example:
+
+Front View
+Side View
+Back View
+
+Then create avatar.
+
+This is how games do it.
+
+V3 (Best Long-Term)
+
+Photo
+
+↓
+
+Face Analysis
+
+↓
+
+Appearance Extraction
+
+{
+  "gender":"male",
+  "hair":"short black",
+  "eyes":"brown",
+  "skin":"medium"
+}
+
+↓
+
+Build Character
+
+↓
+
+Apply to 3D model
+
+Instead of pasting image.
+
+For Your Project
+
+I would completely remove:
+
+Photo
+↓
+Texture Paste
+
+and replace it with:
+
+Photo
+↓
+Appearance Analysis
+↓
+Character Traits
+↓
+Generate Avatar

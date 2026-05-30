@@ -1,5 +1,8 @@
-image generation button not automatic
 logo name
 
 3d character - modify
 video short clips
+
+bible sync
+
+video 10s*3

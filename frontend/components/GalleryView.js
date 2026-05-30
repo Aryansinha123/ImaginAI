@@ -169,107 +169,138 @@ export default function GalleryView() {
 
       {/* Main Gallery List */}
       <div className="relative z-10 space-y-10">
-        {scenesWithImages.length === 0 ? (
+        {scenes.filter(s => (s.images && s.images.length > 0) || s.image || (s.clips && s.clips.length > 0)).length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center py-20 px-8 border border-dashed border-zinc-900 rounded-3xl bg-zinc-950/10">
             <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-850 flex items-center justify-center text-zinc-650 mb-4 shadow-inner">
               <ImageIcon className="w-8 h-8" />
             </div>
-            <h3 className="text-sm font-bold text-zinc-400">No Generated Images</h3>
+            <h3 className="text-sm font-bold text-zinc-400">No Generated Assets</h3>
             <p className="text-xs text-zinc-650 mt-1 max-w-xs leading-relaxed">
-              Create and generate scene completions in the **Scene Studio** to automatically produce beautiful AI widescreen illustrations.
+              Create and generate scene completions and video clips in the **Scene Studio** to automatically populate your gallery.
             </p>
           </div>
         ) : (
-          scenesWithImages.map((scene, sceneIdx) => {
-            const currentImages = scene.images || (scene.image ? [scene.image] : []);
-            
-            return (
-              <div 
-                key={scene.id} 
-                className="space-y-4 bg-zinc-950/30 border border-zinc-900/60 p-6 rounded-3xl hover:border-zinc-900 transition-all duration-350"
-              >
-                {/* Scene Header */}
-                <div className="flex items-center justify-between border-b border-zinc-900/50 pb-3">
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-mono text-zinc-550 uppercase tracking-widest font-semibold">
-                      Scene #{sceneIdx + 1} &bull; Order {scene.order}
-                    </span>
-                    <h3 className="text-sm font-extrabold text-white">
-                      {scene.title || "Untitled Scene"}
-                    </h3>
+          scenes
+            .filter(s => (s.images && s.images.length > 0) || s.image || (s.clips && s.clips.length > 0))
+            .sort((a, b) => (a.order !== undefined ? a.order : 0) - (b.order !== undefined ? b.order : 0))
+            .map((scene, sceneIdx) => {
+              const currentImages = scene.images || (scene.image ? [scene.image] : []);
+              const currentClips = scene.clips || [];
+              
+              return (
+                <div 
+                  key={scene.id} 
+                  className="space-y-6 bg-zinc-950/30 border border-zinc-900/60 p-6 rounded-3xl hover:border-zinc-900 transition-all duration-350"
+                >
+                  {/* Scene Header */}
+                  <div className="flex items-center justify-between border-b border-zinc-900/50 pb-3">
+                    <div className="space-y-1 text-left">
+                      <span className="text-[9px] font-mono text-zinc-550 uppercase tracking-widest font-semibold">
+                        Scene #{sceneIdx + 1} &bull; Order {scene.order}
+                      </span>
+                      <h3 className="text-sm font-extrabold text-white">
+                        {scene.title || "Untitled Scene"}
+                      </h3>
+                    </div>
+                    {scene.tone && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-850 text-[10px] text-zinc-450 font-mono capitalize">
+                        {scene.tone} tone
+                      </span>
+                    )}
                   </div>
-                  {scene.tone && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-850 text-[10px] text-zinc-450 font-mono capitalize">
-                      {scene.tone} tone
-                    </span>
-                  )}
-                </div>
 
-                {/* Images Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {currentImages.map((img, imgIdx) => {
-                    const isImgDeleting = isDeleting === img;
-                    
-                    return (
-                      <div 
-                        key={img} 
-                        className="aspect-video bg-zinc-950 border border-zinc-900 rounded-2xl relative overflow-hidden group shadow-lg"
-                      >
-                        {/* Widescreen Image */}
-                        <img 
-                          src={`/api/images/${img}`}
-                          alt={`Storyboard frame for ${scene.title}`}
-                          onClick={() => setActiveImage({
-                            sceneId: scene.id,
-                            filename: img,
-                            index: imgIdx,
-                            images: currentImages,
-                            sceneTitle: scene.title,
-                            sceneObj: scene
+                  {/* Media Layout */}
+                  <div className="space-y-6">
+                    {/* Storyboard Images Grid */}
+                    {currentImages.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-mono uppercase text-zinc-500 font-bold block tracking-wider text-left">Storyboard Stills</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {currentImages.map((img, imgIdx) => {
+                            const isImgDeleting = isDeleting === img;
+                            
+                            return (
+                              <div 
+                                key={img} 
+                                className="aspect-video bg-zinc-950 border border-zinc-900 rounded-2xl relative overflow-hidden group shadow-lg"
+                              >
+                                <img 
+                                  src={`/api/images/${img}`}
+                                  alt={`Storyboard frame for ${scene.title}`}
+                                  onClick={() => setActiveImage({
+                                    sceneId: scene.id,
+                                    filename: img,
+                                    index: imgIdx,
+                                    images: currentImages,
+                                    sceneTitle: scene.title,
+                                    sceneObj: scene
+                                  })}
+                                  className="w-full h-full object-cover cursor-zoom-in transition-all duration-500 group-hover:scale-[1.02]"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                                <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-450 font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                                  Frame 0{imgIdx + 1}
+                                </span>
+                                <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <button
+                                    onClick={() => handleDownload(img, scene.title, imgIdx)}
+                                    className="p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95"
+                                    title="Download Frame"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(scene, img)}
+                                    disabled={isImgDeleting}
+                                    className="p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-950/20 hover:border-red-900/40 transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95 disabled:opacity-50"
+                                    title="Delete Frame"
+                                  >
+                                    {isImgDeleting ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-555" />
+                                    ) : (
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            );
                           })}
-                          className="w-full h-full object-cover cursor-zoom-in transition-all duration-500 group-hover:scale-[1.02]"
-                        />
-
-                        {/* Top Gradient Shadow Overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/35 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-
-                        {/* Bottom Label (Visible on Hover) */}
-                        <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-450 font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                          Frame 0{imgIdx + 1}
-                        </span>
-
-                        {/* Action Toolbar overlay */}
-                        <div className="absolute top-3 right-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                          {/* Download Button */}
-                          <button
-                            onClick={() => handleDownload(img, scene.title, imgIdx)}
-                            className="p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95"
-                            title="Download Frame"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => handleDelete(scene, img)}
-                            disabled={isImgDeleting}
-                            className="p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-950/20 hover:border-red-900/40 transition-all cursor-pointer shadow-md hover:scale-105 active:scale-95 disabled:opacity-50"
-                            title="Delete Frame"
-                          >
-                            {isImgDeleting ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-550" />
-                            ) : (
-                              <Trash2 className="w-3.5 h-3.5" />
-                            )}
-                          </button>
                         </div>
                       </div>
-                    );
-                  })}
+                    )}
+
+                    {/* Cinematic Video Clips Grid */}
+                    {currentClips.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-mono uppercase text-zinc-500 font-bold block tracking-wider text-left">Cinematic Video Loops</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {currentClips.map((clip, clipIdx) => (
+                            <div 
+                              key={clip} 
+                              className="aspect-video bg-zinc-950 border border-zinc-900 rounded-2xl relative overflow-hidden group shadow-lg"
+                            >
+                              <video 
+                                src={`http://127.0.0.1:8000/generated_images/${clip}`}
+                                className="w-full h-full object-cover"
+                                loop
+                                muted
+                                playsInline
+                                autoPlay
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-black/25 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                              <span className="absolute bottom-3 left-4 text-[9px] font-mono uppercase tracking-wider text-zinc-450 font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                                Clip 0{clipIdx + 1}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                 </div>
-              </div>
-            );
-          })
+              );
+            })
         )}
       </div>
 

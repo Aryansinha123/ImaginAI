@@ -17,29 +17,51 @@ export const useStore = create((set, get) => ({
   authError: null,
   authInitialized: false,
 
-  initAuth: () => {
+  initAuth: async () => {
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("imaginai_token");
       const userStr = localStorage.getItem("imaginai_user");
       if (token && userStr) {
         set({ token, user: JSON.parse(userStr) });
-        get().fetchProjects();
-
-        // Restore active project and view
-        const savedProject = localStorage.getItem("imaginai_active_project");
-        const savedView = localStorage.getItem("imaginai_active_view");
-        if (savedProject) {
-          try {
-            const project = JSON.parse(savedProject);
-            set({ activeProject: project });
-            get().fetchProjectData(project.id);
-            get().fetchCanvasState(project.id);
-          } catch (e) {
-            console.error("Error loading active project from local storage:", e);
+        
+        // Fetch projects first
+        try {
+          const res = await API.get("/projects");
+          set({ projects: res.data });
+          
+          const currentProjects = res.data || [];
+          const savedProject = localStorage.getItem("imaginai_active_project");
+          const savedView = localStorage.getItem("imaginai_active_view");
+          
+          console.log("DEBUG initAuth: currentProjects =", currentProjects);
+          console.log("DEBUG initAuth: savedProject =", savedProject);
+          
+          if (savedProject) {
+            try {
+              const project = JSON.parse(savedProject);
+              // Check matching via both id and _id fields
+              const projectExists = currentProjects.some(p => (p.id || p._id) === (project.id || project._id));
+              console.log("DEBUG initAuth: projectExists =", projectExists);
+              
+              if (projectExists) {
+                set({ activeProject: project });
+                get().fetchProjectData(project.id || project._id);
+                get().fetchCanvasState(project.id || project._id);
+              } else {
+                console.log("DEBUG initAuth: Stale project detected. Removing from localStorage.");
+                localStorage.removeItem("imaginai_active_project");
+                localStorage.removeItem("imaginai_active_view");
+                set({ activeProject: null });
+              }
+            } catch (e) {
+              console.error("Error loading active project from local storage:", e);
+            }
           }
-        }
-        if (savedView) {
-          set({ activeView: savedView });
+          if (savedView && localStorage.getItem("imaginai_active_project")) {
+            set({ activeView: savedView });
+          }
+        } catch (err) {
+          console.error("Error fetching projects during auth initialization:", err);
         }
       }
       set({ authInitialized: true });
@@ -175,10 +197,11 @@ export const useStore = create((set, get) => ({
         isLoading: false
       });
     } catch (err) {
-      console.error("Error fetching project details:", err);
       set({ isLoading: false });
       if (err.response?.status === 404) {
         get().setActiveProject(null);
+      } else {
+        console.error("Error fetching project details:", err);
       }
     }
   },
@@ -191,9 +214,10 @@ export const useStore = create((set, get) => ({
         canvasEdges: res.data.edges || []
       });
     } catch (err) {
-      console.error("Error fetching canvas state:", err);
       if (err.response?.status === 404) {
         get().setActiveProject(null);
+      } else {
+        console.error("Error fetching canvas state:", err);
       }
     }
   },
@@ -444,6 +468,22 @@ export const useStore = create((set, get) => ({
       return res.data;
     } catch (err) {
       console.error("Error generating scene images:", err);
+      return null;
+    }
+  },
+
+  generateSceneClips: async (sceneId) => {
+    const { activeProject } = get();
+    if (!activeProject || !sceneId) return null;
+    try {
+      const res = await API.post(`/projects/${activeProject.id}/scenes/${sceneId}/generate-clips`);
+      set((state) => ({
+        scenes: state.scenes.map((s) => (s.id === sceneId ? res.data : s)),
+        activeScene: state.activeScene?.id === sceneId ? res.data : state.activeScene,
+      }));
+      return res.data;
+    } catch (err) {
+      console.error("Error generating scene clips:", err);
       return null;
     }
   }

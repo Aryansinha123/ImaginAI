@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import base64
 from groq import Groq
 from dotenv import load_dotenv
 import os
@@ -560,6 +561,37 @@ def generate_scene_images(request_data: ImageGenerationRequest):
         "image": image_filenames[0] if image_filenames else None,
     }
 
+class ClipsGenerationRequest(BaseModel):
+    images: List[str]
+
+@app.post("/generate-scene-clips")
+def generate_scene_clips(request_data: ClipsGenerationRequest):
+    """Generate dynamic video MP4 clips from static storyboard frame filenames."""
+    images = request_data.images or []
+    clip_filenames = []
+    
+    if not images:
+        return {"clips": [], "error": "No storyboard images provided"}
+        
+    try:
+        from video_generator import generate_video_clip
+        for img in images:
+            img_path = os.path.join("generated_images", img)
+            if os.path.exists(img_path):
+                try:
+                    base = os.path.splitext(img)[0]
+                    clip_name = f"{base}.mp4"
+                    generate_video_clip(img_path, clip_name)
+                    clip_filenames.append(clip_name)
+                except Exception as clip_err:
+                    print(f"Error generating clip for {img}: {clip_err}")
+    except Exception as e:
+        print(f"Error in clips generation pipeline: {e}")
+        
+    return {
+        "clips": clip_filenames
+    }
+
 @app.delete("/generated_images/{filename}")
 def delete_image(filename: str):
     file_path = os.path.join("generated_images", filename)
@@ -678,3 +710,67 @@ Example JSON output format:
 def get_character_arc_endpoint(character_name: str):
     from data.character_arcs import get_character_arc
     return get_character_arc(character_name)
+
+@app.post("/extract-features")
+async def extract_features(file: UploadFile = File(...)):
+    contents = await file.read()
+    base64_image = base64.b64encode(contents).decode("utf-8")
+    
+    prompt = """
+    Analyze this photo of a human character.
+    Extract the following physical attributes in structured JSON format with these exact keys:
+    - "gender": string (e.g., "male", "female", "non-binary")
+    - "age": integer or string (e.g., 25, "mid-twenties")
+    - "hair": string description of hair style, length, and color (e.g., "short curly black hair")
+    - "eyes": string description of eye color/shape (e.g., "brown almond eyes")
+    - "skinTone": string (e.g., "fair", "olive", "dark")
+    - "clothing": string describing what they are wearing (e.g., "dark leather jacket and grey shirt")
+    - "faceShape": string (choose strictly one of: "oval", "round", "square", "heart", "chiseled")
+    - "appearance_summary": string combining these features into a 1-sentence prompt description (e.g., "A 25-year-old female with short curly black hair, olive skin, wearing a dark leather jacket.")
+    
+    Return ONLY a valid JSON object matching this structure. Do not write any markdown code block wraps (like ```json) or explanation.
+    """
+    
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.2-11b-vision-preview",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500
+        )
+        response_text = completion.choices[0].message.content.strip()
+        
+        cleaned = response_text
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+        
+        return json.loads(cleaned)
+    except Exception as e:
+        print(f"Error in vision feature extraction: {e}")
+        return {
+            "gender": "unknown",
+            "age": "unknown",
+            "hair": "unknown",
+            "eyes": "unknown",
+            "skinTone": "unknown",
+            "clothing": "unknown",
+            "faceShape": "round",
+            "appearance_summary": "A human character reference."
+        }

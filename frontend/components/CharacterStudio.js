@@ -1,14 +1,54 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { useStore } from "../store/useStore";
 import { useToast } from "./ToastProvider";
 import CharacterCard from "./CharacterCard";
 import CharacterTraits from "./CharacterTraits";
 import RelationshipPanel from "./RelationshipPanel";
 import EmotionPanel from "./EmotionPanel";
-import { User, Plus, X, ArrowLeft, Loader2, Sparkles, Brain, Network, Compass, Layers, TrendingUp } from "lucide-react";
+import { User, Plus, X, ArrowLeft, Loader2, Sparkles, Brain, Network, Compass, Layers, TrendingUp, UploadCloud } from "lucide-react";
 import API from "../lib/api";
+
+const Character3DViewer = dynamic(() => import("./Character3DViewer"), { ssr: false });
+
+// Helper to map visual features to 3D mesh colors
+const mapDescriptionToColors = (features) => {
+  const result = {};
+  
+  const hair = (features.hair || "").toLowerCase();
+  if (hair.includes("black")) result.hairColor = "#0c0c0c";
+  else if (hair.includes("brown") || hair.includes("dark")) result.hairColor = "#4a2c11";
+  else if (hair.includes("blonde") || hair.includes("yellow") || hair.includes("fair")) result.hairColor = "#e8c374";
+  else if (hair.includes("red") || hair.includes("auburn")) result.hairColor = "#a53d1d";
+  else if (hair.includes("grey") || hair.includes("gray") || hair.includes("silver")) result.hairColor = "#9e9e9e";
+  else if (hair.includes("white")) result.hairColor = "#f5f5f5";
+  
+  const skin = (features.skinTone || "").toLowerCase();
+  if (skin.includes("fair") || skin.includes("light") || skin.includes("pale")) result.skinColor = "#ffd1b3";
+  else if (skin.includes("olive") || skin.includes("tanned") || skin.includes("medium")) result.skinColor = "#d1a384";
+  else if (skin.includes("dark") || skin.includes("black") || skin.includes("brown")) result.skinColor = "#5c4033";
+  
+  const eyes = (features.eyes || "").toLowerCase();
+  if (eyes.includes("blue")) result.eyeColor = "#4b9cd3";
+  else if (eyes.includes("green")) result.eyeColor = "#2e8b57";
+  else if (eyes.includes("brown") || eyes.includes("dark")) result.eyeColor = "#5c4033";
+  else if (eyes.includes("hazel")) result.eyeColor = "#8e7618";
+  else if (eyes.includes("grey") || eyes.includes("gray")) result.eyeColor = "#708090";
+
+  const clothing = (features.clothing || "").toLowerCase();
+  if (clothing.includes("black") || clothing.includes("dark")) result.clothingColor = "#18181b";
+  else if (clothing.includes("white") || clothing.includes("light")) result.clothingColor = "#f4f4f5";
+  else if (clothing.includes("red")) result.clothingColor = "#ef4444";
+  else if (clothing.includes("blue")) result.clothingColor = "#3b82f6";
+  else if (clothing.includes("green")) result.clothingColor = "#10b981";
+  else if (clothing.includes("yellow")) result.clothingColor = "#eab308";
+  else if (clothing.includes("purple") || clothing.includes("violet")) result.clothingColor = "#8b5cf6";
+  else if (clothing.includes("grey") || clothing.includes("gray")) result.clothingColor = "#71717a";
+
+  return result;
+};
 
 // Tag Input Component
 function FormTagInput({ label, tags, setTags, placeholder }) {
@@ -56,6 +96,16 @@ export default function CharacterStudio() {
   // Form Drawer state
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingChar, setEditingChar] = useState(null);
+  const [showProgressPopup, setShowProgressPopup] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const dismissed = localStorage.getItem("imaginai_3d_in_progress_dismissed");
+      if (!dismissed) {
+        setShowProgressPopup(true);
+      }
+    }
+  }, []);
 
   // Form input states
   const [name, setName] = useState("");
@@ -77,6 +127,16 @@ export default function CharacterStudio() {
   const [voiceStyle, setVoiceStyle] = useState("");
   const [relationshipType, setRelationshipType] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+
+  // Three.js states
+  const [hairColor, setHairColor] = useState("#4a2c11");
+  const [skinColor, setSkinColor] = useState("#ffd1b3");
+  const [eyeColor, setEyeColor] = useState("#4b9cd3");
+  const [clothingColor, setClothingColor] = useState("#7c3aed");
+  const [heightScale, setHeightScale] = useState(1.0);
+  const [faceShape, setFaceShape] = useState("round");
+  const [hairStyle, setHairStyle] = useState("short");
+  const [isUploading, setIsUploading] = useState(false);
   
   // Character Arc states
   const [characterArc, setCharacterArc] = useState(null);
@@ -159,6 +219,7 @@ export default function CharacterStudio() {
       age,
       gender,
       appearance: { height, hair, eyes, skinTone, clothing },
+      threeDConfig: { hairColor, skinColor, eyeColor, clothingColor, heightScale, faceShape, hairStyle },
       core_traits: coreTraits,
       strengths,
       flaws,
@@ -217,6 +278,13 @@ export default function CharacterStudio() {
     setVoiceStyle("");
     setRelationshipType("");
     setAvatarUrl("");
+    setHairColor("#4a2c11");
+    setSkinColor("#ffd1b3");
+    setEyeColor("#4b9cd3");
+    setClothingColor("#7c3aed");
+    setHeightScale(1.0);
+    setFaceShape("round");
+    setHairStyle("short");
     setShowAddForm(true);
   };
 
@@ -242,6 +310,16 @@ export default function CharacterStudio() {
     setVoiceStyle(char.voice_style || "");
     setRelationshipType(char.relationship_type || "");
     setAvatarUrl(char.avatarUrl || "");
+
+    const threeD = char.threeDConfig || {};
+    setHairColor(threeD.hairColor || "#4a2c11");
+    setSkinColor(threeD.skinColor || "#ffd1b3");
+    setEyeColor(threeD.eyeColor || "#4b9cd3");
+    setClothingColor(threeD.clothingColor || "#7c3aed");
+    setHeightScale(threeD.heightScale || 1.0);
+    setFaceShape(threeD.faceShape || "round");
+    setHairStyle(threeD.hairStyle || "short");
+
     setShowAddForm(true);
   };
 
@@ -281,6 +359,7 @@ export default function CharacterStudio() {
 
         {/* Add/Edit Drawer */}
         {showAddForm && renderFormDrawer()}
+        {renderProgressPopup()}
       </div>
     );
   }
@@ -422,6 +501,36 @@ export default function CharacterStudio() {
                 </span>
                 <span className="text-sm font-medium text-white">{selectedChar.communication_style || "No specific style defined."}</span>
               </div>
+            </div>
+
+            {/* 3D Character Model View */}
+            <div className="bg-zinc-950/30 border border-zinc-900 p-5 rounded-2xl space-y-4 text-left">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-purple-400 font-bold block border-b border-zinc-900 pb-2">
+                3D Character Model Clone
+              </span>
+              <Character3DViewer
+                hairColor={selectedChar.threeDConfig?.hairColor || "#4a2c11"}
+                skinColor={selectedChar.threeDConfig?.skinColor || "#ffd1b3"}
+                eyeColor={selectedChar.threeDConfig?.eyeColor || "#4b9cd3"}
+                clothingColor={selectedChar.threeDConfig?.clothingColor || "#7c3aed"}
+                heightScale={selectedChar.threeDConfig?.heightScale || 1.0}
+                faceShape={selectedChar.threeDConfig?.faceShape || "round"}
+                hairStyle={selectedChar.threeDConfig?.hairStyle || "short"}
+                onChangeConfig={async (config) => {
+                  const updatedThreeD = {
+                    ...(selectedChar.threeDConfig || {}),
+                    ...config
+                  };
+                  const updatedChar = {
+                    ...selectedChar,
+                    threeDConfig: updatedThreeD
+                  };
+                  setSelectedChar(updatedChar);
+                  await updateCharacter(activeProject.id, selectedChar.id, {
+                    threeDConfig: updatedThreeD
+                  });
+                }}
+              />
             </div>
 
             <EmotionPanel character={selectedChar} scenes={scenes} />
@@ -667,8 +776,46 @@ export default function CharacterStudio() {
 
       {/* Add/Edit Drawer */}
       {showAddForm && renderFormDrawer()}
+      {renderProgressPopup()}
     </div>
   );
+
+  // Helper render for progress popup
+  function renderProgressPopup() {
+    if (!showProgressPopup) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-fade-in select-none">
+        <div className="bg-zinc-950 border border-zinc-850 p-6 rounded-2xl max-w-sm w-full text-center space-y-4 shadow-2xl shadow-purple-500/10">
+          <div className="w-12 h-12 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-full flex items-center justify-center mx-auto animate-pulse">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-white">3D Rendering Progress</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              3D cloning and customizer meshes are currently still in progress. Standard features are active, and more assets will load dynamically.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              onClick={() => {
+                localStorage.setItem("imaginai_3d_in_progress_dismissed", "true");
+                setShowProgressPopup(false);
+              }}
+              className="w-full py-2.5 bg-purple-650 hover:bg-purple-600 text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
+            >
+              Mark as Read
+            </button>
+            <button
+              onClick={() => setShowProgressPopup(false)}
+              className="w-full py-2 bg-zinc-900 border border-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-semibold cursor-pointer transition-all"
+            >
+              Remind Me Later
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Drawer Form helper
   function renderFormDrawer() {
@@ -736,9 +883,224 @@ export default function CharacterStudio() {
               </div>
             </div>
 
-            {/* Appearance */}
+            {/* 3-Panel Side-by-Side Character Preview Workspace */}
             <div className="space-y-4 text-left">
-              <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">Appearance</h4>
+              <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5 flex items-center justify-between">
+                <span>Character Cloning Workspace</span>
+                <span className="text-[10px] text-zinc-500 font-normal normal-case">Reference image analysis & procedural generator</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-950 border border-zinc-900 rounded-2xl p-4">
+                
+                {/* Panel 1: Reference Photo */}
+                <div className="flex flex-col bg-zinc-900/40 border border-zinc-850 rounded-xl p-4 items-center justify-center min-h-[220px]">
+                  <span className="text-[9px] font-mono uppercase text-zinc-500 mb-3 tracking-wider block font-bold border-b border-zinc-900 w-full text-center pb-1">1. Reference Image</span>
+                  <div className="w-24 h-24 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center overflow-hidden relative shadow-inner">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar reference" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-6 h-6 text-zinc-750" />
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <Loader2 className="w-5 h-5 text-purple-500 animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <label className="px-3 py-1.5 bg-purple-650 hover:bg-purple-650/80 text-white rounded-lg text-[10px] font-semibold cursor-pointer transition-all inline-flex items-center gap-1">
+                      <UploadCloud className="w-3.5 h-3.5" />
+                      {avatarUrl ? "Replace" : "Upload"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setIsUploading(true);
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          try {
+                            const res = await API.post("/characters/upload-avatar", formData, {
+                              headers: { "Content-Type": "multipart/form-data" }
+                            });
+                            const { url, features } = res.data;
+                            setAvatarUrl(url);
+                            if (features) {
+                              if (features.age) setAge(features.age.toString());
+                              if (features.gender) setGender(features.gender);
+                              if (features.hair) setHair(features.hair);
+                              if (features.eyes) setEyes(features.eyes);
+                              if (features.skinTone) setSkinTone(features.skinTone);
+                              if (features.clothing) setClothing(features.clothing);
+                              if (features.faceShape) setFaceShape(features.faceShape.toLowerCase());
+
+                              const hairLower = (features.hair || "").toLowerCase();
+                              if (hairLower.includes("long")) setHairStyle("long");
+                              else if (hairLower.includes("curly") || hairLower.includes("wavy") || hairLower.includes("afro")) setHairStyle("curly");
+                              else if (hairLower.includes("bald") || hairLower.includes("shaved")) setHairStyle("bald");
+                              else setHairStyle("short");
+                              
+                              const mapped = mapDescriptionToColors(features);
+                              if (mapped.hairColor) setHairColor(mapped.hairColor);
+                              if (mapped.skinColor) setSkinColor(mapped.skinColor);
+                              if (mapped.eyeColor) setEyeColor(mapped.eyeColor);
+                              if (mapped.clothingColor) setClothingColor(mapped.clothingColor);
+                            }
+                            toast({
+                              type: "success",
+                              title: "Photo analyzed",
+                              message: "Physical traits extracted and loaded to 3D Customizer."
+                            });
+                          } catch (err) {
+                            console.error(err);
+                            toast({
+                              type: "error",
+                              title: "Upload failed",
+                              message: "Could not upload or analyze photo."
+                            });
+                          } finally {
+                            setIsUploading(false);
+                          }
+                        }}
+                        disabled={isUploading}
+                        className="hidden"
+                      />
+                    </label>
+                    {avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setAvatarUrl("")}
+                        className="px-2 py-1.5 border border-zinc-800 hover:bg-zinc-900 text-zinc-400 hover:text-white rounded-lg text-[10px] font-semibold"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Panel 2: Extracted Appearance Attributes */}
+                <div className="flex flex-col bg-zinc-900/40 border border-zinc-850 rounded-xl p-4 min-h-[220px]">
+                  <span className="text-[9px] font-mono uppercase text-zinc-500 mb-3 tracking-wider block font-bold border-b border-zinc-900 text-center pb-1">2. Extracted Attributes</span>
+                  <div className="space-y-2 text-[11px] text-left">
+                    <div className="flex justify-between border-b border-zinc-900/60 pb-1">
+                      <span className="text-zinc-550">Gender</span>
+                      <span className="font-semibold text-white capitalize">{gender || "—"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-900/60 pb-1">
+                      <span className="text-zinc-550">Age</span>
+                      <span className="font-semibold text-white capitalize">{age || "—"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-900/60 pb-1">
+                      <span className="text-zinc-550">Skin Tone</span>
+                      <span className="font-semibold text-white capitalize truncate max-w-[80px]">{skinTone || "—"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-900/60 pb-1">
+                      <span className="text-zinc-550">Face Shape</span>
+                      <span className="font-semibold text-purple-400 capitalize">{faceShape || "—"}</span>
+                    </div>
+                    <div className="flex justify-between border-b border-zinc-900/60 pb-1">
+                      <span className="text-zinc-550">Hair Style</span>
+                      <span className="font-semibold text-white capitalize">{hairStyle || "—"}</span>
+                    </div>
+                    <div className="flex justify-between pb-1">
+                      <span className="text-zinc-550">Eye Color</span>
+                      <span className="font-semibold text-white capitalize truncate max-w-[80px]">{eyes || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 3: Generated Procedural Avatar preview */}
+                <div className="flex flex-col bg-zinc-900/40 border border-zinc-850 rounded-xl p-4 min-h-[220px]">
+                  <span className="text-[9px] font-mono uppercase text-zinc-500 mb-2 tracking-wider block font-bold border-b border-zinc-900 text-center pb-1">3. Generated Clone</span>
+                  <div className="flex-1">
+                    <Character3DViewer
+                      hairColor={hairColor}
+                      skinColor={skinColor}
+                      eyeColor={eyeColor}
+                      clothingColor={clothingColor}
+                      heightScale={heightScale}
+                      faceShape={faceShape}
+                      hairStyle={hairStyle}
+                      compact={true}
+                    />
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Avatar Appearance Fine-Tuning */}
+            <div className="space-y-4 text-left">
+              <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">
+                Appearance Fine-Tuning
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-mono uppercase text-zinc-500 block">Height: {Math.round(heightScale * 100)}%</label>
+                  <input
+                    type="range"
+                    min="0.8"
+                    max="1.3"
+                    step="0.01"
+                    value={heightScale}
+                    onChange={(e) => setHeightScale(parseFloat(e.target.value))}
+                    className="w-full accent-purple-500 bg-zinc-950 border border-zinc-800 rounded-lg cursor-pointer h-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-mono uppercase text-zinc-500 block mb-1">Face Shape</label>
+                  <select
+                    value={faceShape}
+                    onChange={(e) => setFaceShape(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-zinc-950 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-lg text-xs"
+                  >
+                    <option value="round">Round</option>
+                    <option value="oval">Oval</option>
+                    <option value="square">Square</option>
+                    <option value="heart">Heart</option>
+                    <option value="chiseled">Chiseled</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[9px] font-mono uppercase text-zinc-500 block mb-1">Hair Style</label>
+                  <select
+                    value={hairStyle}
+                    onChange={(e) => setHairStyle(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-zinc-950 text-white border border-zinc-800 focus:border-purple-500/50 outline-none rounded-lg text-xs"
+                  >
+                    <option value="short">Short</option>
+                    <option value="long">Long</option>
+                    <option value="curly">Curly</option>
+                    <option value="bald">Bald</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="col-span-2">
+                    <label className="text-[9px] font-mono uppercase text-zinc-500 block mb-0.5">Skin</label>
+                    <input
+                      type="color"
+                      value={skinColor}
+                      onChange={(e) => setSkinColor(e.target.value)}
+                      className="w-7 h-7 rounded border border-zinc-800 cursor-pointer overflow-hidden p-0 bg-transparent block"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[9px] font-mono uppercase text-zinc-500 block mb-0.5">Hair</label>
+                    <input
+                      type="color"
+                      value={hairColor}
+                      onChange={(e) => setHairColor(e.target.value)}
+                      className="w-7 h-7 rounded border border-zinc-800 cursor-pointer overflow-hidden p-0 bg-transparent block"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Appearance Details */}
+            <div className="space-y-4 text-left">
+              <h4 className="text-xs uppercase font-mono tracking-wider text-purple-400 font-bold border-b border-zinc-900 pb-1.5">Appearance Text Descriptors</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-555 block mb-1">Height</label>
