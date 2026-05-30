@@ -52,10 +52,31 @@ function normalizePairKey(key) {
 
 export function findUpdatedEmotionsForPair(fromName, toName, updatedEmotions) {
   if (!updatedEmotions || typeof updatedEmotions !== "object") return null;
-  const target = normalizePairKey(`${fromName}->${toName}`);
+  
+  const fromNorm = fromName.replace(/\s+/g, "").toLowerCase();
+  const toNorm = toName.replace(/\s+/g, "").toLowerCase();
+
+  const fromFirst = fromName.split(/\s+/)[0].toLowerCase();
+  const toFirst = toName.split(/\s+/)[0].toLowerCase();
 
   for (const [key, val] of Object.entries(updatedEmotions)) {
-    if (normalizePairKey(key) === target) return val;
+    const parts = key.split(/(?:->|➔| to | and |[-_])/i);
+    if (parts.length === 2) {
+      const kFromNorm = parts[0].replace(/\s+/g, "").toLowerCase();
+      const kToNorm = parts[1].replace(/\s+/g, "").toLowerCase();
+      
+      // Check exact match first
+      if (kFromNorm === fromNorm && kToNorm === toNorm) {
+        return val;
+      }
+      
+      // Fallback: Check if first names match or if one name contains the other
+      const fromMatches = kFromNorm === fromFirst || fromNorm.includes(kFromNorm) || kFromNorm.includes(fromNorm);
+      const toMatches = kToNorm === toFirst || toNorm.includes(kToNorm) || kToNorm.includes(toNorm);
+      if (fromMatches && toMatches) {
+        return val;
+      }
+    }
   }
   return null;
 }
@@ -145,10 +166,24 @@ export function buildEmotionDeltasFromApi(
   return emotionDeltas;
 }
 
+export function coerceDeltaNumber(val, fallback = 0) {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "number" && !Number.isNaN(val)) {
+    return Math.round(val);
+  }
+  if (typeof val === "string") {
+    const parsed = parseFloat(val.replace("%", "").trim());
+    if (!Number.isNaN(parsed)) {
+      return Math.round(parsed);
+    }
+  }
+  return fallback;
+}
+
 /** Normalize stored emotion_deltas for display (handles legacy shapes). */
 export function parseEmotionDisplayEntry(data) {
   if (typeof data === "number") {
-    const delta = coerceEmotionNumber(data, 0);
+    const delta = coerceDeltaNumber(data, 0);
     return { previous: null, newVal: null, delta };
   }
   if (!data || typeof data !== "object") {
@@ -162,7 +197,7 @@ export function parseEmotionDisplayEntry(data) {
   );
   let delta =
     data.delta !== undefined && data.delta !== null
-      ? coerceEmotionNumber(data.delta, 0)
+      ? coerceDeltaNumber(data.delta, 0)
       : previous !== null
         ? newVal - previous
         : 0;

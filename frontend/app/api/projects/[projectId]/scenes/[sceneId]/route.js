@@ -53,6 +53,65 @@ export async function PATCH(req, { params }) {
       return Response.json({ detail: "Scene not found" }, { status: 404 });
     }
 
+    // If emotion_deltas are updated, update the project's canvas_edges in MongoDB
+    if (updateData.emotion_deltas && Object.keys(updateData.emotion_deltas).length > 0 && project.canvas_edges) {
+      const characterIds = result.characterIds || [];
+      const resolvedIds = characterIds.map(id => new ObjectId(id));
+      const assignedCharacters = await db.collection("characters")
+        .find({ _id: { $in: resolvedIds } })
+        .toArray();
+
+      const updatedEdges = project.canvas_edges.map(edge => {
+        const sourceChar = assignedCharacters.find(c => c._id.toString() === edge.source);
+        const targetChar = assignedCharacters.find(c => c._id.toString() === edge.target);
+        if (sourceChar && targetChar) {
+          const keyST = `${sourceChar.name}->${targetChar.name}`;
+          const keyTS = `${targetChar.name}->${sourceChar.name}`;
+
+          const emotions = edge.emotions ? { ...edge.emotions } : {
+            source_to_target: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 },
+            target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
+          };
+
+          if (updateData.emotion_deltas[keyST]) {
+            const stNew = {};
+            for (const [emName, emObj] of Object.entries(updateData.emotion_deltas[keyST])) {
+              stNew[emName] = emObj.new;
+            }
+            emotions.source_to_target = { ...emotions.source_to_target, ...stNew };
+          }
+          if (updateData.emotion_deltas[keyTS]) {
+            const tsNew = {};
+            for (const [emName, emObj] of Object.entries(updateData.emotion_deltas[keyTS])) {
+              tsNew[emName] = emObj.new;
+            }
+            emotions.target_to_source = { ...emotions.target_to_source, ...tsNew };
+          }
+
+          const primaryEmotions = emotions.source_to_target || emotions;
+          const trust = primaryEmotions.trust ?? 50;
+          let stroke = "#eab308";
+          if (trust <= 30) stroke = "#ef4444";
+          else if (trust > 70) stroke = "#22c55e";
+
+          const cleanLabel = edge.label ? edge.label.split(" (Trust:")[0] : "Connected";
+
+          return {
+            ...edge,
+            label: `${cleanLabel} (Trust: ${trust}%)`,
+            style: { stroke, strokeWidth: 2.5 },
+            emotions
+          };
+        }
+        return edge;
+      });
+
+      await db.collection("projects").updateOne(
+        { _id: new ObjectId(projectId) },
+        { $set: { canvas_edges: updatedEdges } }
+      );
+    }
+
     return Response.json({
       id: result._id.toString(),
       projectId: result.project_id.toString(),

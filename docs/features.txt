@@ -1,0 +1,55 @@
+Already Implemented
+Character Studio — Create and manage detailed characters with appearance, personality, and psychological traits.
+Character Brain Engine — Gives each character unique goals, fears, flaws, values, and decision-making patterns.
+Scene Generation Engine — Generates cinematic scenes using character and project context.
+Director Engine — Determines mood, lighting, camera angle, atmosphere, and scene intensity.
+Memory System — Stores important events and retrieves relevant memories for future scenes.
+Vector Memory (ChromaDB) — Semantic memory retrieval instead of simple chat history.
+Memory Extraction Engine — Extracts emotionally important moments from scenes.
+Relationship Engine — Tracks trust, attachment, comfort, awkwardness, and other relationship metrics.
+Hidden Thoughts Engine — Generates what characters think but do not say.
+Emotional State Engine — Tracks emotional changes caused by scene events.
+Story Bible Engine — Maintains important events, story threads, and world knowledge.
+Character Arc Engine — Tracks how characters evolve throughout the story.
+Timeline Branching — Supports alternate realities and different story outcomes.
+Relationship Graph — Visualizes connections and emotional states between characters.
+Multi-Scene Projects — Organizes scenes within larger story universes.
+Character Assignment System — Assigns specific characters to specific scenes.
+Visual Prompt Builder — Converts scenes into image-generation-ready prompts.
+
+
+🎬 High Priority (Needed For Short Clip Generation)
+Storyboard Engine — Breaks a scene into multiple cinematic shots.
+Shot Generator — Converts scenes into structured camera shots with duration and framing.
+✅Character Visual Consistency — Ensures characters look the same across images and videos.
+✅Scene Keyframe Generator — Generates important visual moments from a scene.
+Camera Motion Engine — Creates camera movement instructions between shots.
+Dialogue-to-Screenplay Engine — Converts scenes into screenplay format with actions and dialogue.
+Visual Timeline Engine — Displays shots and keyframes in chronological order.
+Scene Composition Engine — Determines character placement within a frame.
+✅Environment Generator — Creates consistent locations such as cafés, parks, classrooms, etc.
+✅Character Pose Engine — Determines body language and character positioning.
+
+
+🎥 Final Video Layer
+Image Sequence Generator — Generates multiple frames from keyframes.
+✅Video Prompt Builder — Creates optimized prompts for video models.
+✅Short Clip Generator — Produces 5–15 second cinematic clips.
+✅Character Voice Engine — Generates dialogue audio using character voices.
+✅Background Music Engine — Generates mood-based soundtrack suggestions.
+✅Sound Effects Engine — Adds environmental audio and scene effects.
+✅Lip Sync System — Synchronizes dialogue with generated characters.
+Scene Stitching Engine — Combines clips into longer sequences.
+
+🚀 Future / Advanced Features
+Reality Simulator — Simulates multiple possible outcomes from a single decision.
+Conversation Simulator — Lets users practice conversations with realistic character responses.
+Dream Exploration Mode — Expands dreams into explorable narratives.
+Multi-Agent Character Simulation — Characters act independently based on goals and emotions.
+Autonomous World Engine — World evolves even without direct user input.
+✅3D Character Viewer — Interactive 3D visualization of characters.
+3D Scene Renderer — Renders entire scenes in a 3D environment.
+Interactive Cinematic Episodes — Users play through AI-generated stories.
+Universe Dashboard — Central control panel for timelines, characters, and story state.
+Relationship Arc Engine — Tracks long-term evolution of relationships.
+Branch Comparison Engine — Compare alternate realities side by side.

@@ -7,18 +7,16 @@ import uuid
 
 load_dotenv()
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-
 API_URL = (
     "https://router.huggingface.co/hf-inference/models/"
     "black-forest-labs/FLUX.1-schnell"
 )
 
-headers = {
-    "Authorization": f"Bearer {HF_TOKEN}"
-}
-
 def generate_scene_image(prompt):
+    hf_token = os.getenv("HF_TOKEN")
+    headers = {
+        "Authorization": f"Bearer {hf_token}"
+    }
 
     response = requests.post(
         API_URL,

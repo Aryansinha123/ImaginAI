@@ -7,17 +7,8 @@ async function main() {
     await client.connect();
     const db = client.db("imaginai_db");
     
-    const projects = await db.collection("projects").find({}).toArray();
-    for (let p of projects) {
-      console.log(`Project: ${p.name}`);
-      console.log(`Edges:`, JSON.stringify(p.canvas_edges, null, 2));
-    }
-    
-    const scenes = await db.collection("scenes").find({}).sort({created_at: -1}).limit(2).toArray();
-    console.log(`\nLast 2 Scenes:`);
-    for (let s of scenes) {
-      console.log(`Scene title: ${s.title}, deltas: ${JSON.stringify(s.emotion_deltas)}`);
-    }
+    const lastScene = await db.collection("scenes").find({}).sort({ created_at: -1 }).limit(1).toArray();
+    console.log("Last Scene:", JSON.stringify(lastScene[0], null, 2));
 
   } finally {
     await client.close();

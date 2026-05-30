@@ -296,6 +296,60 @@ export async function POST(req, { params }) {
 
     const result = await db.collection("scenes").insertOne(newScene);
 
+    // Update the project's canvas_edges in MongoDB to reflect the new cumulative emotions
+    if (project.canvas_edges && Object.keys(emotionDeltas).length > 0) {
+      const updatedEdges = project.canvas_edges.map(edge => {
+        const sourceChar = assignedCharacters.find(c => c._id.toString() === edge.source);
+        const targetChar = assignedCharacters.find(c => c._id.toString() === edge.target);
+        if (sourceChar && targetChar) {
+          const keyST = `${sourceChar.name}->${targetChar.name}`;
+          const keyTS = `${targetChar.name}->${sourceChar.name}`;
+
+          const emotions = edge.emotions ? { ...edge.emotions } : {
+            source_to_target: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 },
+            target_to_source: { trust: 50, attachment: 50, awkwardness: 0, resentment: 0, comfort: 50 }
+          };
+
+          if (emotionDeltas[keyST]) {
+            const stNew = {};
+            for (const [emName, emObj] of Object.entries(emotionDeltas[keyST])) {
+              stNew[emName] = emObj.new;
+            }
+            emotions.source_to_target = { ...emotions.source_to_target, ...stNew };
+          }
+          if (emotionDeltas[keyTS]) {
+            const tsNew = {};
+            for (const [emName, emObj] of Object.entries(emotionDeltas[keyTS])) {
+              tsNew[emName] = emObj.new;
+            }
+            emotions.target_to_source = { ...emotions.target_to_source, ...tsNew };
+          }
+
+          // Update edge label with the new trust percentage
+          const primaryEmotions = emotions.source_to_target || emotions;
+          const trust = primaryEmotions.trust ?? 50;
+          let stroke = "#eab308";
+          if (trust <= 30) stroke = "#ef4444";
+          else if (trust > 70) stroke = "#22c55e";
+
+          const cleanLabel = edge.label ? edge.label.split(" (Trust:")[0] : "Connected";
+
+          return {
+            ...edge,
+            label: `${cleanLabel} (Trust: ${trust}%)`,
+            style: { stroke, strokeWidth: 2.5 },
+            emotions
+          };
+        }
+        return edge;
+      });
+
+      await db.collection("projects").updateOne(
+        { _id: new ObjectId(projectId) },
+        { $set: { canvas_edges: updatedEdges } }
+      );
+    }
+
     return Response.json({
       id: result.insertedId.toString(),
       projectId: projectId,
