@@ -41,8 +41,9 @@ export async function POST(req) {
         contentType: file.type,
       });
 
+      const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
       const fastApiRes = await axios.post(
-        "http://127.0.0.1:8000/extract-features",
+        `${backendUrl}/extract-features`,
         fastApiFormData,
         {
           headers: fastApiFormData.getHeaders(),

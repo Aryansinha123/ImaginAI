@@ -168,7 +168,7 @@ export default function CharacterStudio() {
     if (!charName) return;
     setLoadingArc(true);
     try {
-      const res = await API.get(`/character-arc?characterName=${encodeURIComponent(charName)}`);
+      const res = await API.get(`/character-arc?characterName=${encodeURIComponent(charName)}&projectId=${activeProject?.id || "default_project"}`);
       setCharacterArc(res.data);
     } catch (err) {
       console.error("Error fetching character arc:", err);

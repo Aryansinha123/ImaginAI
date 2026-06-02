@@ -49,7 +49,8 @@ export async function POST(req, { params }) {
     }
 
     // Call the Python backend to generate video clips
-    const apiRes = await axios.post("http://127.0.0.1:8000/generate-scene-clips", {
+    const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
+    const apiRes = await axios.post(`${backendUrl}/generate-scene-clips`, {
       scene_text: scene.generated_text,
       direction: scene.direction || null,
       characters: characters.map(c => ({

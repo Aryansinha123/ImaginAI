@@ -19,5 +19,57 @@
       "Aisha->Ryan": "Aisha is becoming more hesitant and guarded in her interactions with Ryan"
     },
     "world_summary": "The scene takes place against a backdrop of a vast and majestic city, highlighting the contrast between the characters' small aspirations and the larger universe."
+  },
+  "6a1a7f19ca42c5b5c44df20b": {
+    "important_events": [],
+    "active_story_threads": [],
+    "character_summaries": {},
+    "relationship_summaries": {},
+    "world_summary": ""
+  },
+  "6a1e817273ad268e914a1158": {
+    "important_events": [
+      "Elena considered signing the acquisition contract",
+      "Liam's concern for the contract was revealed",
+      "Elena and Liam shared a moment of nostalgia",
+      "Alex's past as a hitman is revealed",
+      "A shocking betrayal by the main antagonist",
+      "Aisha found Ryan's abandoned belongings",
+      "Aisha was drawn into a mysterious, unsettling world",
+      "Aisha and Ryan met with the eccentric stranger",
+      "Aisha's connection with Ryan deepened and complicated",
+      "Ryan's past began to unravel"
+    ],
+    "active_story_threads": [
+      "Aisha's past connection with the mysterious world",
+      "Ryan's secret and the truth behind his past",
+      "The truth about the enigmatic stranger and their motives"
+    ],
+    "character_summaries": {
+      "Elena": "Elena is struggling with a daunting decision, and her past is affecting her choices, but she's also nostalgic for simpler times.",
+      "Liam": "Liam is worried about the direction of the company and his concern for Elena hints at a deeper level of commitment, but his moment of nostalgia shows a softer side.",
+      "Alex": "A former hitman struggling to find redemption and a new purpose",
+      "Jack": "A determined and vengeful individual driven by a desire for justice",
+      "Eve": "A mysterious and skilled adversary with unclear motives",
+      "Aisha": "Aisha's sense of control and confidence is challenged as she becomes entangled in Ryan's mysterious world.",
+      "Ryan": "Ryan's facade crumbles as Aisha gets closer to the truth about his past, exposing his vulnerability and fear."
+    },
+    "relationship_summaries": {
+      "Elena->Liam": "Elena and Liam's relationship is strained due to their differing views, but moments of nostalgia and concern hint at a deeper emotional connection.",
+      "Liam->Elena": "Liam's concern for Elena and their shared past suggests he cares about her well-being and is invested in her life.",
+      "Alex->Jack": "A complex and antagonistic relationship rooted in past betrayals",
+      "Jack->Eve": "A dynamic of mutual distrust and suspicion with underlying tension",
+      "Eve->Alex": "A delicate and enigmatic dance of cat and mouse, testing Alex's moral boundaries",
+      "Aisha->Ryan": "A deep emotional connection forms between Aisha and Ryan, but also a sense of unease and power imbalance.",
+      "Aisha->Stranger": "Aisha's relationship with the stranger is complex and unsettling, blurring the lines between danger and fascination."
+    },
+    "world_summary": "In this enigmatic world, Aisha's ordinary life is disrupted by the mysterious stranger and Ryan's cryptic past. The lines between reality and fantasy are increasingly blurred, forcing Aisha to confront the darkness within herself and the truth about those around her."
+  },
+  "test_project_123": {
+    "important_events": [],
+    "active_story_threads": [],
+    "character_summaries": {},
+    "relationship_summaries": {},
+    "world_summary": ""
   }
 }

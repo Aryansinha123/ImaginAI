@@ -4,14 +4,16 @@ import axios from "axios";
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const characterName = searchParams.get("characterName");
+  const projectId = searchParams.get("projectId") || "default_project";
 
   if (!characterName) {
     return NextResponse.json({ detail: "Missing characterName parameter" }, { status: 400 });
   }
 
   try {
-    const { data } = await axios.get("http://127.0.0.1:8000/character-arc", {
-      params: { character_name: characterName }
+    const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
+    const { data } = await axios.get(`${backendUrl}/character-arc`, {
+      params: { character_name: characterName, project_id: projectId }
     });
     return NextResponse.json(data);
   } catch (error) {

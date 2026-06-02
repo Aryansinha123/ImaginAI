@@ -138,7 +138,8 @@ export default function GalleryView() {
     try {
       // 1. Delete the physical image file from the backend API
       try {
-        await axios.delete(`http://127.0.0.1:8000/generated_images/${filename}`);
+        const backendUrl = process.env.NEXT_PUBLIC_AI_BACKEND_URL || "http://127.0.0.1:8000";
+        await axios.delete(`${backendUrl}/generated_images/${filename}`);
       } catch (backendErr) {
         // If file is already gone or backend is down, log it but continue updating DB
         console.warn("Backend physical deletion warning:", backendErr);
@@ -207,7 +208,8 @@ export default function GalleryView() {
     try {
       // 1. Delete physical file from python backend
       try {
-        await axios.delete(`http://127.0.0.1:8000/generated_images/${filename}`);
+        const backendUrl = process.env.NEXT_PUBLIC_AI_BACKEND_URL || "http://127.0.0.1:8000";
+        await axios.delete(`${backendUrl}/generated_images/${filename}`);
       } catch (backendErr) {
         console.warn("Backend physical clip deletion warning:", backendErr);
       }

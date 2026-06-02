@@ -46,7 +46,8 @@ export const useStore = create((set, get) => ({
               console.log("DEBUG initAuth: projectExists =", projectExists);
               
               if (projectExists) {
-                set({ activeProject: project });
+                const matchedProj = currentProjects.find(p => (p.id || p._id) === (project.id || project._id));
+                set({ activeProject: matchedProj || project });
                 get().fetchProjectData(project.id || project._id);
                 get().fetchCanvasState(project.id || project._id);
               } else {
@@ -281,8 +282,26 @@ export const useStore = create((set, get) => ({
         projects: state.projects.map((p) => (p.id === projectId ? res.data : p)),
         activeProject: state.activeProject?.id === projectId ? res.data : state.activeProject
       }));
+      if (typeof window !== "undefined" && state.activeProject?.id === projectId) {
+        localStorage.setItem("imaginai_active_project", JSON.stringify(res.data));
+      }
     } catch (err) {
       console.error("Error renaming project:", err);
+    }
+  },
+
+  updateProjectTheme: async (projectId, theme) => {
+    try {
+      const res = await API.patch(`/projects/${projectId}`, { theme });
+      set((state) => ({
+        projects: state.projects.map((p) => (p.id === projectId ? res.data : p)),
+        activeProject: state.activeProject?.id === projectId ? res.data : state.activeProject
+      }));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("imaginai_active_project", JSON.stringify(res.data));
+      }
+    } catch (err) {
+      console.error("Error updating project theme:", err);
     }
   },
 
@@ -516,7 +535,8 @@ export const useStore = create((set, get) => ({
       const axios = (await import("axios")).default;
       const resolvedChars = isSandbox ? [] : characters.filter(c => scene.characterIds?.includes(c.id || c._id));
       
-      const res = await axios.post("http://127.0.0.1:8000/generate-scene-images", {
+      const backendUrl = process.env.NEXT_PUBLIC_AI_BACKEND_URL || "http://127.0.0.1:8000";
+      const res = await axios.post(`${backendUrl}/generate-scene-images`, {
         scene_text: shotDescription,
         direction: {
           camera: cameraAngle || "wide",
@@ -544,8 +564,9 @@ export const useStore = create((set, get) => ({
         });
         set({ storyboard: updatedStoryboard });
       } else {
-        // Find and update the specific storyboard inside the scene's storyboards array
-        const storyboards = scene.storyboards || [];
+        // Get the latest scene state from the store to avoid race conditions
+        const latestScene = get().scenes.find(s => s.id === sceneId) || scene;
+        const storyboards = latestScene.storyboards || [];
         const updatedStoryboards = storyboards.map(sb => {
           if (sb.id === storyboardId) {
             const updatedShots = (sb.shots || []).map(shot => {
@@ -563,7 +584,7 @@ export const useStore = create((set, get) => ({
         const updatedStoryboard = updatedStoryboards.length > 0 ? updatedStoryboards[0].shots : [];
 
         // Also add the new generated image filename to the scene's images array
-        const currentImages = scene.images || [];
+        const currentImages = latestScene.images || [];
         const updatedImages = currentImages.includes(generatedImage)
           ? currentImages
           : [...currentImages, generatedImage];
@@ -573,7 +594,7 @@ export const useStore = create((set, get) => ({
           storyboard: updatedStoryboard,
           images: updatedImages
         };
-        if (!scene.image) {
+        if (!latestScene.image) {
           patchData.image = generatedImage;
         }
         

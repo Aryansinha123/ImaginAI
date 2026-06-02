@@ -7,7 +7,8 @@ export async function GET(req, { params }) {
   const title = searchParams.get("title") || "image";
 
   try {
-    const response = await axios.get(`http://127.0.0.1:8000/generated_images/${filename}`, {
+    const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
+    const response = await axios.get(`${backendUrl}/generated_images/${filename}`, {
       responseType: "arraybuffer",
     });
 

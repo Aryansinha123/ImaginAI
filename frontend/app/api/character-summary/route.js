@@ -74,7 +74,8 @@ export async function POST(req) {
     }));
 
     // Call python completions backend
-    const pythonRes = await axios.post("http://127.0.0.1:8000/character-summary", {
+    const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
+    const pythonRes = await axios.post(`${backendUrl}/character-summary`, {
       character: mappedChar,
       scenes: mappedScenes,
       story_bible: project.story_bible || {}

@@ -11,9 +11,21 @@ export async function PATCH(req, { params }) {
   const { projectId } = await params;
 
   try {
-    const { name } = await req.json();
-    if (!name || name.trim().length === 0) {
-      return Response.json({ detail: "Project name is required" }, { status: 400 });
+    const { name, theme } = await req.json();
+    
+    const updateData = {};
+    if (name !== undefined) {
+      if (!name || name.trim().length === 0) {
+        return Response.json({ detail: "Project name is required" }, { status: 400 });
+      }
+      updateData.name = name.trim();
+    }
+    if (theme !== undefined) {
+      updateData.theme = theme;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return Response.json({ detail: "No update parameters provided" }, { status: 400 });
     }
 
     const client = await clientPromise;
@@ -21,7 +33,7 @@ export async function PATCH(req, { params }) {
 
     const result = await db.collection("projects").findOneAndUpdate(
       { _id: new ObjectId(projectId), user_id: new ObjectId(userId) },
-      { $set: { name: name.trim() } },
+      { $set: updateData },
       { returnDocument: "after" }
     );
 
@@ -32,6 +44,7 @@ export async function PATCH(req, { params }) {
     return Response.json({
       id: result._id.toString(),
       name: result.name,
+      theme: result.theme || "default",
       user_id: result.user_id.toString(),
       created_at: result.created_at
     });

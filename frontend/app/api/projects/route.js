@@ -21,6 +21,7 @@ export async function GET(req) {
     const mapped = projects.map(p => ({
       id: p._id.toString(),
       name: p.name,
+      theme: p.theme || "default",
       user_id: p.user_id.toString(),
       created_at: p.created_at
     }));
@@ -50,6 +51,7 @@ export async function POST(req) {
     const newProject = {
       name: name.trim(),
       user_id: new ObjectId(userId),
+      theme: "default",
       created_at: new Date().toISOString()
     };
 
@@ -58,6 +60,7 @@ export async function POST(req) {
     return Response.json({
       id: result.insertedId.toString(),
       name: newProject.name,
+      theme: newProject.theme,
       user_id: userId,
       created_at: newProject.created_at
     });

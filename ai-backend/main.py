@@ -84,8 +84,233 @@ def home():
 
 
 @app.get("/story-bible")
-def get_story_bible_endpoint(project_id: str = "default_project"):
-    return get_story_bible(project_id)
+def get_story_bible_endpoint(project_id: Optional[str] = None, projectId: Optional[str] = None):
+    pid = project_id or projectId or "default_project"
+    return get_story_bible(pid)
+
+class RebuildBibleRequest(BaseModel):
+    project_id: str
+    characters: List[Dict[str, Any]]
+    scenes: List[Dict[str, Any]]
+
+@app.post("/rebuild-story-bible")
+def rebuild_story_bible_endpoint(request_data: RebuildBibleRequest):
+    project_id = request_data.project_id
+    characters = request_data.characters
+    scenes = request_data.scenes
+
+    # 1. Rebuild relationship states from scenes' emotion_deltas
+    from data.relationships import get_relationship_state, relationship_key, relationship_states, save_relationships
+    # Clear existing relationship states for this project first to avoid accumulation anomalies
+    if project_id in relationship_states:
+        relationship_states[project_id] = {}
+    
+    # Process scenes chronologically to rebuild relationship state
+    for scene in scenes:
+        deltas = scene.get("emotion_deltas") or {}
+        for pair_key, delta_obj in deltas.items():
+            parts = pair_key.split("->")
+            if len(parts) == 2:
+                c1, c2 = parts[0].strip(), parts[1].strip()
+                parsed_updates = {}
+                for em, val in delta_obj.items():
+                    if isinstance(val, dict):
+                        new_val = val.get("new")
+                        if new_val is not None:
+                            parsed_updates[em] = new_val
+                    else:
+                        parsed_updates[em] = val
+                
+                state = get_relationship_state(c1, c2, project_id=project_id)
+                for em, val in parsed_updates.items():
+                    if em in state:
+                        state[em] = val
+                
+                if project_id not in relationship_states:
+                    relationship_states[project_id] = {}
+                relationship_states[project_id][relationship_key(c1, c2)] = state
+    save_relationships()
+
+    # 2. Rebuild the Story Bible via Groq
+    bible_data = {
+        "important_events": [],
+        "active_story_threads": [],
+        "character_summaries": {},
+        "relationship_summaries": {},
+        "world_summary": ""
+    }
+    if scenes:
+        story_texts = []
+        for idx, s in enumerate(scenes):
+            title = s.get("title") or f"Scene {idx+1}"
+            text = s.get("generated_text") or s.get("prompt") or ""
+            # Truncate text to avoid huge token count
+            if len(text) > 1000:
+                text = text[:1000] + "... [truncated]"
+            story_texts.append(f"Scene {idx+1}: {title}\nContent:\n{text}")
+        full_story = "\n\n=======================\n\n".join(story_texts)
+        
+        prompt = f"""
+        You are a narrative analyst.
+        Below is the sequence of scenes for a story generated so far.
+        Analyze the full sequence of events and extract:
+        1. Important Events: Pivotal turning points in the narrative. Keep descriptions short and punchy.
+        2. Active Story Threads: Unresolved plot lines, mysteries, or conflicts in play.
+        3. Character Evolution: A summary of each character's growth/changes (one sentence each).
+        4. Relationship Dynamics: A summary of the dynamic between active character pairs (one sentence each, key format: "CharA->CharB").
+        5. World Summary: A concise description of the setting and overall narrative vibe.
+
+        Return ONLY a valid JSON object matching this structure:
+        {{
+            "important_events": ["string", "string"],
+            "active_story_threads": ["string", "string"],
+            "character_summaries": {{ "Name": "one sentence evolution" }},
+            "relationship_summaries": {{ "NameA->NameB": "one sentence dynamic" }},
+            "world_summary": "one paragraph string"
+        }}
+
+        Story Scenes:
+        {full_story}
+        """
+        
+        try:
+            completion = groq_chat_completion(
+                client,
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+                max_tokens=800,
+            )
+            response_text = completion.choices[0].message.content.strip()
+            cleaned = _parse_json_response(response_text)
+            bible_data = json.loads(cleaned)
+        except Exception as e:
+            print(f"Error rebuilding story bible: {e}")
+            
+    # Save the rebuilt story bible
+    from story_bible.story_bible_engine import update_story_bible
+    update_story_bible(project_id, bible_data)
+
+    # 3. Rebuild Character Arcs via Groq for each character
+    from data.character_arcs import character_arcs, save_character_arcs
+    if project_id not in character_arcs:
+        character_arcs[project_id] = {}
+        
+    for char in characters:
+        char_name = char.get("name")
+        if not char_name:
+            continue
+            
+        # Filter scenes featuring this character
+        char_scenes = []
+        for idx, s in enumerate(scenes):
+            char_id = char.get("id") or char.get("_id")
+            char_in_scene = False
+            # Check if matching characterId exists in characterIds list
+            # characterIds could contain string IDs or ObjectIds or represent strings
+            scene_char_ids = s.get("characterIds", []) or s.get("character_ids", [])
+            # Also normalize to strings
+            scene_char_ids_str = [str(cid) for cid in scene_char_ids]
+            
+            if char_id and str(char_id) in scene_char_ids_str:
+                char_in_scene = True
+            elif char_name.lower() in (s.get("generated_text") or "").lower() or char_name.lower() in (s.get("prompt") or "").lower():
+                char_in_scene = True
+                
+            if char_in_scene:
+                char_scenes.append((idx + 1, s.get("title") or f"Scene {idx+1}", s.get("generated_text") or s.get("prompt") or ""))
+                
+        if not char_scenes:
+            character_arcs[project_id][char_name] = {
+                "starting_state": "Emotionally guarded",
+                "current_state": "Emotionally guarded",
+                "growth_direction": "Becoming emotionally open",
+                "current_conflict": "Fear of abandonment",
+                "arc_stage": "beginning",
+                "arc_progress": 0,
+                "history": []
+            }
+            continue
+            
+        char_scenes_context = ""
+        for s_num, s_title, s_text in char_scenes:
+            if len(s_text) > 800:
+                s_text = s_text[:800] + "... [truncated]"
+            char_scenes_context += f"Scene {s_num}: {s_title}\nContent:\n{s_text}\n\n"
+            
+        arc_prompt = f"""
+        You are a character arc analyzer.
+        Analyze this character's profile and their journey across the sequence of scenes they participated in.
+        
+        Character Profile:
+        - Name: {char_name}
+        - Core Traits: {char.get("core_traits")}
+        - Strengths: {char.get("strengths")}
+        - Flaws: {char.get("flaws")}
+        - Fears: {char.get("fears")}
+        - Goals: {char.get("goals")}
+        - Values: {char.get("values")}
+
+        Story Scenes featuring {char_name}:
+        {char_scenes_context}
+
+        Your task:
+        1. Determine their starting state (at the beginning of the story).
+        2. Determine their current state (after the last scene).
+        3. Determine their growth direction and current conflict.
+        4. Determine their arc stage (choose strictly one of: "beginning", "middle", "climax", "resolution") and current progress percentage (0 to 100).
+        5. Generate a chronological history of their state changes for each scene they were in. Each history entry must have the scene index (integer), the scene title (string), the progress percentage reached (integer), and the character's emotional/behavioral state in that scene (string).
+
+        Return ONLY a valid JSON object matching this structure:
+        {{
+            "starting_state": "string",
+            "current_state": "string",
+            "growth_direction": "string",
+            "current_conflict": "string",
+            "arc_stage": "beginning/middle/climax/resolution",
+            "arc_progress": integer,
+            "history": [
+                {{
+                    "scene": integer,
+                    "title": "string",
+                    "progress": integer,
+                    "state": "string"
+                }}
+            ]
+        }}
+        """
+        
+        try:
+            completion = groq_chat_completion(
+                client,
+                model="llama-3.1-8b-instant",
+                messages=[{"role": "user", "content": arc_prompt}],
+                response_format={"type": "json_object"},
+                max_tokens=600,
+            )
+            response_text = completion.choices[0].message.content.strip()
+            cleaned = _parse_json_response(response_text)
+            arc_data = json.loads(cleaned)
+            character_arcs[project_id][char_name] = arc_data
+        except Exception as e:
+            print(f"Error rebuilding character arc for {char_name}: {e}")
+            character_arcs[project_id][char_name] = {
+                "starting_state": "Emotionally guarded",
+                "current_state": "Emotionally guarded",
+                "growth_direction": "Becoming emotionally open",
+                "current_conflict": "Fear of abandonment",
+                "arc_stage": "beginning",
+                "arc_progress": 0,
+                "history": []
+            }
+    save_character_arcs()
+
+    return {
+        "status": "success",
+        "story_bible": bible_data,
+        "character_arcs": character_arcs[project_id]
+    }
+
 
 class StoryboardRequest(BaseModel):
     scene: str
@@ -146,7 +371,7 @@ def generate_scene(request_data: SceneRequest):
                     c1 = characters[i].get("name")
                     c2 = characters[j].get("name")
                     if c1 and c2:
-                        relationships[f"{c1}->{c2}"] = get_relationship_state(c1, c2)
+                        relationships[f"{c1}->{c2}"] = get_relationship_state(c1, c2, project_id=project_id)
  
     relationships_str = ""
     if relationships:
@@ -165,12 +390,12 @@ def generate_scene(request_data: SceneRequest):
         character_brains_list.append(brain_str)
         
         # Build emotional state for the character
-        indiv_emotions = get_emotion_state(char_name)
+        indiv_emotions = get_emotion_state(char_name, project_id=project_id)
         char_relationships = {}
         for other_char in characters:
             other_name = other_char.get("name")
             if other_name and other_name != char_name:
-                char_relationships[f"{char_name}->{other_name}"] = get_relationship_state(char_name, other_name)
+                char_relationships[f"{char_name}->{other_name}"] = get_relationship_state(char_name, other_name, project_id=project_id)
         
         emotional_state_str = f"Individual Emotions: {indiv_emotions}\n"
         if char_relationships:
@@ -204,7 +429,7 @@ def generate_scene(request_data: SceneRequest):
     from data.character_arcs import get_character_arc
     for char in characters:
         char_name = char.get("name", "Unnamed")
-        arc = get_character_arc(char_name)
+        arc = get_character_arc(char_name, project_id=project_id)
         arc_str = (
             f"Character: {char_name}\n"
             f"- Starting State: {arc.get('starting_state')}\n"
@@ -466,12 +691,12 @@ Example JSON:
                 parts = key.split("->")
                 if len(parts) == 2:
                     c1, c2 = parts[0].strip(), parts[1].strip()
-                    curr = get_relationship_state(c1, c2)
+                    curr = get_relationship_state(c1, c2, project_id=project_id)
                     deltas = {}
                     for k, v in ems.items():
                         if k in curr:
                             deltas[k] = v - curr[k]
-                    update_relationship_state(c1, c2, deltas)
+                    update_relationship_state(c1, c2, deltas, project_id=project_id)
     except Exception as e:
         print(f"Error updating relationships: {e}")
 
@@ -483,10 +708,10 @@ Example JSON:
             char_name = char.get("name")
             if char_name:
                 arc_update = analyze_arc_progress(scene_for_analysis, char)
-                arc = get_character_arc(char_name)
+                arc = get_character_arc(char_name, project_id=project_id)
                 scene_num = len(arc.get("history", [])) + 1
                 scene_title = f"Scene {scene_num}"
-                update_character_arc(char_name, arc_update, scene_title, scene_num)
+                update_character_arc(char_name, arc_update, scene_title, scene_num, project_id=project_id)
     except Exception as e:
         print(f"Error updating character arcs: {e}")
 
@@ -859,9 +1084,10 @@ Example JSON output format:
         }
 
 @app.get("/character-arc")
-def get_character_arc_endpoint(character_name: str):
+def get_character_arc_endpoint(character_name: str, project_id: Optional[str] = None, projectId: Optional[str] = None):
+    pid = project_id or projectId or "default_project"
     from data.character_arcs import get_character_arc
-    return get_character_arc(character_name)
+    return get_character_arc(character_name, project_id=pid)
 
 @app.post("/extract-features")
 async def extract_features(file: UploadFile = File(...)):

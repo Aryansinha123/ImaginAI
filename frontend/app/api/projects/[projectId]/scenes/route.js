@@ -249,7 +249,8 @@ export async function POST(req, { params }) {
 
     if (!generatedText) {
       // Call stateless FastAPI completions backend
-      const apiRes = await axios.post("http://127.0.0.1:8000/generate-scene", {
+      const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
+      const apiRes = await axios.post(`${backendUrl}/generate-scene`, {
         scene,
         characters: assignedCharacters,
         tone: tone || "neutral",

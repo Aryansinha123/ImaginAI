@@ -10,7 +10,8 @@ export async function GET(req, { params }) {
       headers["range"] = range;
     }
 
-    const response = await axios.get(`http://127.0.0.1:8000/generated_images/${filename}`, {
+    const backendUrl = process.env.AI_BACKEND_URL || "http://127.0.0.1:8000";
+    const response = await axios.get(`${backendUrl}/generated_images/${filename}`, {
       headers,
       responseType: "arraybuffer",
       validateStatus: () => true // Allow any status code (like 206 Partial Content) to pass through
