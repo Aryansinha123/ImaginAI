@@ -14,3 +14,4 @@ node_modules/
 
 # Generated assets
 ai-backend/generated_images/
+docs/helper.txt
