@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download the SentenceTransformer model during the build phase so it's baked into the image
 # and does not download on every container boot or timeout on slow starts
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
+RUN python -c "import torch; setattr(torch, 'float8_e8m0fnu', torch.float32); from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 # Copy the rest of the backend files
 COPY . .

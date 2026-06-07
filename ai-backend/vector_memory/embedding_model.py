@@ -1,3 +1,9 @@
+# Patch torch to avoid AttributeError: module 'torch' has no attribute 'float8_e8m0fnu'
+# which occurs in newer versions of the 'transformers' library in CPU-only environments.
+import torch
+if not hasattr(torch, "float8_e8m0fnu"):
+    setattr(torch, "float8_e8m0fnu", torch.float32)
+
 from sentence_transformers import SentenceTransformer
 
 _model = None
